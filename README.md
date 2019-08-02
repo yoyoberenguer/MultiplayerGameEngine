@@ -1,5 +1,5 @@
-# Multiplayer Game Engine
-## 2D Multiplayer game engine (Alpha version) 
+# 2D Multiplayer Game Engine
+## 2D shmups multiplayer game engine (Alpha version) 
 
 ![alt text](https://github.com/yoyoberenguer/MultiplayerGameEngine/blob/master/Multiplayer.PNG)
 
