@@ -1154,9 +1154,7 @@ if __name__ == '__main__':
         #  create single group type pygame.sprite.layerUpdatesModified() group by adding network sprites directly
         #  into the GL.All group (also pygame.sprite.layerUpdatesModified())
         #  Note, all network sprites added to the GL.All group have to be killed after being blit onto
-        #  the display to avoid filling up the group of new instances (Broadcast class calls will add a
-        #  new sprite instances to the group GL.All each frames without killing the previous one, with the
-        #   effect of slowing down the game loop and displaying un-necessary sprites.
+        #  the display to avoid filling up the group of new instances.
 
         GL.All.draw(screen)
 
@@ -1167,11 +1165,12 @@ if __name__ == '__main__':
         # *************************************************************
         # Draw here all the other sprites that does not belongs to
         # common groups (GL.All & GL.NetGroupAll).
-        # Sprite blit last onto the display are at the top layer.
+        # Sprite last blit onto the display are at the top layer.
         # Be aware that any surface(s) blit with blend attribute will
         # also blend with the entire sprite scene (blending with
         # sprites from all layers)
-        # e.g Drawing GUI and life/energy sprite bars, screen bullet impacts
+        # What to blit in this location?
+        # -> Drawing GUI and life/energy sprite bars, screen bullet impacts
         # special effects, final score, ending screen and text inputs etc.
 
         # Update the sound Controller
