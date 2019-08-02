@@ -13,11 +13,13 @@ It is setup by default to run on the loopback; you can change it with the follow
 ## Computer 1 (e.g 192.168.1.106)
 
 if __name__ == '__main__':
+
   SERVER = '192.168.1.106'  
   CLIENT = '192.168.1.112'
 
 ## Computer 2 (e.g IP 192.168.1.112)
 
 if __name__ == '__main__':
+
   SERVER = '192.168.1.106'
   CLIENT = '192.168.1.112'
