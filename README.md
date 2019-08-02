@@ -21,7 +21,7 @@ Player1 and Player2 scripts on the same computer. Therefore, you can run
 player 2 on a different machine to experience the network sound effect and players 
 synchronization throughout the network. 
 
-When Player1 script is lauched, it will try 5 times to connect to a client. 
+When Player1 script is launch, it will try 5 times to connect to a client. 
 If no client is connecting during, Player1 will timeout and start the demo without player2.
 This is a demo version, in the future the connections between server/client(s) will be done with a menu.
 
