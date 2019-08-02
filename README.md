@@ -1,7 +1,7 @@
 # Multiplayer Game Engine
 2D Multiplayer game engine (Alpha version) 
 
-![alt text](https://github.com/yoyoberenguer/MultiplayerGameEngine/Multiplayer.png)
+![alt text](https://github.com/yoyoberenguer/MultiplayerGameEngine/blob/master/Multiplayer.PNG)
 
 To run the demo you will need the following python libraries install on your system 
  1) pygame
