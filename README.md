@@ -1,5 +1,5 @@
 # Multiplayer Game Engine
-2D Multiplayer game engine (Alpha version) 
+## 2D Multiplayer game engine (Alpha version) 
 
 ![alt text](https://github.com/yoyoberenguer/MultiplayerGameEngine/blob/master/Multiplayer.PNG)
 
@@ -8,13 +8,13 @@ To run the demo you will need the following python libraries install on your sys
  2) matplotlib  
  3) Lz4 
 
-Make sure to allow the demo to run (connecting to port 1024 and 1025).
+**Make sure to allow ports 1024, 1025 through your firewall**.
 
-Make sure port 1024 and 1025 are not used by another process.
+**Make sure port 1024 and 1025 are not used by another process**.
 
-The program will not run without the Asset folder.
+**The program will not run without the Asset folder.**
 
-Run first Player1 followed shortly by Player2 
+### Run first Player1 followed shortly by Player2 
 
 The demo is setup by default to run on the loopback to be able to start 
 Player1 and Player2 scripts on the same computer. Therefore, you can run 
