@@ -8,7 +8,7 @@ To run the demo you will need the following python libraries install on your sys
 
 Run first Player1 followed shortly by Player2 
 
-It is setup by default to run the game on the loopback, you can change that it with the following variables:
+It is setup by default to run on the loopback; you can change it with the following variables:
 
 ## Computer 1 (e.g 192.168.1.106)
 
