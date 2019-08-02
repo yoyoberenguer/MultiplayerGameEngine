@@ -39,6 +39,14 @@ if __name__ == '__main__':
   SERVER = '192.168.1.106'  
   CLIENT = '192.168.1.112'
 
-Space bar to shoot 
 
-Directional keys to control spaceship
+**key**         |    Assignement 
+--------------- | -------------------
+**Spacebar**    |    primary shoot
+**left arrow**  |    Left turn
+**right arrow** |    right turn
+**up arrow**    |    going forward
+**down arrow**  |    going back
+**ESC**         |    quit
+
+
