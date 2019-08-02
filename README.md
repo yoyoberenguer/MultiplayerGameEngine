@@ -22,7 +22,7 @@ player 2 on a different machine to experience the network sound effect and playe
 synchronization throughout the network. 
 
 When Player1 script is launch, it will try 5 times to connect to a client. 
-If no client is connecting during, Player1 will timeout and start the demo without player2.
+Player1 will timeout and start the demo without player2 if no client are capable of connecting during that time.
 This is a demo version, in the future the connections between server/client(s) will be done with a menu.
 
 ## Computer 1 (e.g 192.168.1.106)
