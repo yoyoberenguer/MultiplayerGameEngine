@@ -9,7 +9,9 @@ To run the demo you will need the following python libraries install on your sys
  3) Lz4 
 
 Make sure to allow the demo to run (connecting to port 1024 and 1025).
+
 Make sure port 1024 and 1025 are not used by another process.
+
 The program will not run without the Asset folder.
 
 Run first Player1 followed shortly by Player2 
