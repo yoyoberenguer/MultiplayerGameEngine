@@ -6,9 +6,20 @@ To run the demo you will need the following python libraries install on your sys
  2) matplotlib  
  3) Lz4 
 
+Make sure to allow the demo to run (connecting to port 1024 and 1025).
+Make sure port 1024 and 1025 are not used by another process.
+The program will not run without the Asset folder.
+
 Run first Player1 followed shortly by Player2 
 
-It is setup by default to run on the loopback; you can change it with the following variables:
+The demo is setup by default to run on the loopback to be able to start 
+Player1 and Player2 scripts on the same computer. Therefore, you can run 
+player 2 on a different machine to experience the network sound effect and players 
+synchronization throughout the network. 
+
+When Player1 script is lauched, it will try 5 times to connect to a client. 
+If no client are connecting during that time, Player1 will start the demo without player2.
+This is a demo version, in the future the connection will be done with a menu.
 
 ## Computer 1 (e.g 192.168.1.106)
 
