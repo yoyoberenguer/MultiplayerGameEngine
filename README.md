@@ -1,7 +1,7 @@
 # 2D Multiplayer Game Engine
 ## 2D shmups multiplayer game engine (Alpha version) 
 
-![alt text](https://github.com/yoyoberenguer/MultiplayerGameEngine/blob/master/Multiplayer.PNG)
+![alt text](https://github.com/yoyoberenguer/MultiplayerGameEngine/blob/master/Multiplayer.png)
 
 To run the demo you will need the following python libraries install on your system 
  1) pygame
