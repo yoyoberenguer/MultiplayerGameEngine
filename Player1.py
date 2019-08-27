@@ -953,6 +953,7 @@ class SpriteServer(threading.Thread):
 
                                         self.gl.XTRANS_SCALE.update({sprite_.id_: sprite_.image})
 
+                            s = None
                             # find Player 2
                             if sprite_.surface == 'P2_SURFACE':
                                 s = Player2(sprite_)
@@ -995,7 +996,7 @@ class SpriteServer(threading.Thread):
                             # If a sprite is not added to that group, it will be ignored
                             # and not display on the client side.
 
-                            if len(self.gl.NetGroupAll) > 0:
+                            if s is not None and len(self.gl.NetGroupAll) > 0:
                                 has_ = False
                                 for sprites in self.gl.NetGroupAll:
                                     if sprites.id_ == s.id_:
@@ -1391,6 +1392,9 @@ if __name__ == '__main__':
 
             if keys[pygame.K_ESCAPE]:
                 GL.STOP_GAME = True
+
+            if keys[pygame.K_F8]:
+                pygame.image.save(screen, 'dump0.png')
 
             if event.type == pygame.MOUSEMOTION:
                 GL.MOUSE_POS = pygame.math.Vector2(event.pos)

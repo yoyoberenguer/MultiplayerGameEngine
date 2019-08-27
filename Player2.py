@@ -749,8 +749,9 @@ class SpriteServer(threading.Thread):
                             # NetGroupAll, will be used in the main loop (locally) to display
                             # all the sprites broadcast from a specific frame number.
                             # If a sprite is not added to that group, it will be ignored
-                            # and not display on the client side. 
-                            if len(self.gl.NetGroupAll) > 0:
+                            # and not display on the client side.
+
+                            if s is not None and len(self.gl.NetGroupAll) > 0:
                                 has_ = False
                                 for sprites in self.gl.NetGroupAll:
                                     if sprites.id_ == s.id_:
