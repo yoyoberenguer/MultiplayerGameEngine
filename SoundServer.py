@@ -275,9 +275,10 @@ class SoundControl:
         :param x_:  Position for panning a sound,
         :param object_id_: unique player id
         """
-        """
+
         assert isinstance(sound_, pygame.mixer.Sound), 'Expecting sound player ' \
                                                        'for argument sound_got %s ' % type(sound_)
+        """"
         assert isinstance(loop_, bool), 'Expecting boolean for argument loop_ got %s ' % type(loop_)
         assert isinstance(priority_, int), 'Expecting int for argument priority got %s ' % type(priority_)
         assert isinstance(volume_, (float, int)), 'Expecting float or int for argument volume_ got %s ' % type(volume_)
@@ -324,6 +325,8 @@ class SoundControl:
 
             # All channels busy
             else:
+                # print("\n[-]INFO - All channels busy.")
+                # print(self.show_sounds_playing())
                 # print('Stopping duplicate sound on channel(s) %s %s ' % (self.get_identical_sounds(sound_), name_))
                 self.stop(self.get_identical_sounds(sound_))
                 # very important, go to next channel.
