@@ -355,7 +355,9 @@ class Asteroid(pygame.sprite.Sprite):
 
         if self.rect.colliderect(self.gl.SCREENRECT) and self.alive():
             
-            self.asteroid_object.update({'frame': self.gl.FRAME, 'rect': self.rect, 'life': self.life})
+            self.asteroid_object.update({'frame': self.gl.FRAME,
+                                         'rect': self.rect,
+                                         'life': self.life})
             self.asteroid_object.queue()
 
         self.dt += self.gl.TIME_PASSED_SECONDS

@@ -79,7 +79,10 @@ class Explosion(pygame.sprite.Sprite):
                 self.kill()
 
         if self.rect.colliderect(self.gl.SCREENRECT):
-            self.explosion_object.update({'frame': self.gl.FRAME, 'rect': self.rect, 'index': self.index})
+            self.explosion_object.update({'frame': self.gl.FRAME,
+                                          'rect': self.rect,
+                                          'index': self.index,
+                                          'blend': self.blend})
             self.explosion_object.queue()
 
         self.dt += self.gl.TIME_PASSED_SECONDS

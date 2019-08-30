@@ -467,7 +467,7 @@ class Player1(pygame.sprite.Sprite):
         self.blend = 0
         self.shooting = False
         self.previous_pos = pygame.math.Vector2()           # previous position
-        self.life = 1000                                    # player's life
+        self.life = 200                                     # player's life
         self.eng_right = self.right_engine()                # instance for right engine
         self.eng_left = self.left_engine()                  # isntance for left engine
         # todo test if convert_alpha otherwise this is useless
@@ -531,7 +531,7 @@ class Player1(pygame.sprite.Sprite):
         assert isinstance(damage_, int), \
             'Positional argument damage_ is not an int, got %s instead.' % type(damage_)
         assert damage_ > 0, 'damage_ argument should be > 0 '
-
+        print(self.life, damage_, self.life - damage_)
         if self.alive():
             self.life -= damage_
             self.gl.MIXER.play(sound_=IMPACT, loop_=False, priority_=0,
@@ -540,24 +540,21 @@ class Player1(pygame.sprite.Sprite):
                                object_id_=id(IMPACT),
                                screenrect_=self.gl.SCREENRECT)         
             self.impact_sound_object.play()
-            
-            if self.life < 1:
-                self.explode()
-
+    """
     def hit(self, damage_: int) -> None:
-        """
-        Transfer damage to the player after being hit.
+        
+        #Transfer damage to the player after being hit.
 
-        :param damage_: integer > 0, damage transfer to the player
-        :return: None
-        """
+        #:param damage_: integer > 0, damage transfer to the player
+        #:return: None
+
         assert isinstance(damage_, int), \
             'Positional argument damage_ is not an int, got %s instead.' % type(damage_)
         assert damage_ > 0, 'damage_ argument should be > 0 '
 
         if self.alive():
             self.life -= damage_
-
+    """
     def left_engine(self) -> AfterBurner:
         """
         Create a sprite for the left engine
@@ -635,10 +632,7 @@ class Player1(pygame.sprite.Sprite):
             self.image = self.image_copy.copy()
 
             if self.life < 1:
-                Explosion.images = EXPLOSION1
-                Explosion(self, self.rect.center,
-                          self.gl, self.timing, self.layer, texture_name_='EXPLOSION2')
-                self.kill()
+                self.explode()
 
             if self.gl.KEYS[pygame.K_UP]:
                 self.rect.move_ip(0, -self.speed * self.gl.SPEED_FACTOR)
@@ -666,7 +660,8 @@ class Player1(pygame.sprite.Sprite):
             if self.alive():
                 # Broadcast the spaceship position every frames
                 self.player_object.update({'frame': self.gl.FRAME,
-                                           'rect': self.rect, 'life': self.life})
+                                           'rect': self.rect,
+                                           'life': self.life})
                 self.player_object.queue()
 
             if self.previous_pos == self.rect.center:
@@ -694,7 +689,7 @@ class Player2(pygame.sprite.Sprite):
 
         >>> import pygame
         >>> attributes = {'rect': pygame.Rect(0, 0, 0, 0),
-        ...     'image':None, 'blend':0, 'layer':-1, 'id_':35555, 'surface':'P1_SURFACE'}
+        ...     'image':None, 'blend':0, 'layer':-1, 'id_':35555, 'surface':'P1_SURFACE', 'damage': 800, 'life': 200}
         >>> sprite_ = pygame.sprite.Sprite()
         >>> for attr, value in attributes.items():
         ...     setattr(sprite_, attr, value)
@@ -718,6 +713,8 @@ class Player2(pygame.sprite.Sprite):
         self.layer = sprite_.layer
         self.id_ = sprite_.id_
         self.surface = sprite_.surface
+        self.damage = sprite_.damage
+        self.life = sprite_.life
 
     def update(self) -> None:
         ...
@@ -861,7 +858,7 @@ class SpriteServer(threading.Thread):
                     print("\n[-]SpriteServer - ERROR %s %s" % (error, time.ctime()))
                     # signal to kill both threads SpriteServer and SpriteClient
                     # todo need to remove player 2 sprite
-                    self.gl.P1CS_STOP = True
+                    self.gl.SPRITE_SERVER_STOP = True
                     nbytes = 0
 
                 buffer = self.view.tobytes()[:nbytes]
@@ -872,8 +869,7 @@ class SpriteServer(threading.Thread):
                     print("\n[-]SpriteServer - ERROR %s %s" % (error, time.ctime()))
                     # todo need to remove player 2 sprite
                     # signal to kill both threads SpriteServer and SpriteClient
-                    self.gl.P1CS_STOP = True
-
+                    self.gl.SPRITE_SERVER_STOP = True
                 try:
                     # Decompress the data frame
                     decompress_data = lz4.frame.decompress(buffer)
@@ -883,7 +879,8 @@ class SpriteServer(threading.Thread):
                     # the bytes stream sent is larger than the buffer size.
                     # todo need to remove player 2 sprite
                     # signal to kill both threads SpriteServer and SpriteClient
-                    self.gl.P1CS_STOP = True
+                    self.gl.SPRITE_SERVER_STOP = True
+                    self.gl.SPRITE_CLIENT_STOP = True
                     data = None
 
                 # todo check if self.gl.NetGroupAll.empty() is faster
@@ -1146,6 +1143,16 @@ def collision_detection():
             for spr in GL.NetGroupAll:
                 if spr.id_ == shots.id_:
                     spr.kill()
+
+    # Use collision mask for collision detection
+    # Check collision between Player 2 and asteroids
+    if p2 is not None and p2.alive():
+        collision = pygame.sprite.spritecollideany(p2, GL.ASTEROID, collided=pygame.sprite.collide_mask)
+        if collision is not None:
+            # Cannot send damage to player 2, this
+            # is done on the remote host in the collision detection section
+            # Pass only damage to the asteroid
+            collision.collide(p2.damage)
 
     # Transport collision with asteroid
     if T1 is not None and T1.alive():

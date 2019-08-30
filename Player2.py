@@ -156,12 +156,12 @@ class Player2(pygame.sprite.Sprite):
         self.speed = 300
         self.blend = None
         self.previous_pos = pygame.math.Vector2()  # previous position
-        self.life = 1000
+        self.life = 200
         self.eng_right = self.right_engine()
         self.eng_left = self.left_engine()
         # todo test if convert_alpha otherwise this is useless
         self.mask = pygame.mask.from_surface(self.image)  # Image have to be convert_alpha compatible
-        self.damage = 900
+        self.damage = 800
         self.id_ = id(self)
         self.player_object = Broadcast(self.make_object())
         self.impact_sound_object = Broadcast(self.make_sound_object('IMPACT'))
@@ -173,7 +173,8 @@ class Player2(pygame.sprite.Sprite):
         # Only attributes self.gl.FRAME, self.rect are changing over the time.
         return StaticSprite(
                 frame_=self.gl.FRAME, id_=self.id_, surface_=self.surface_name,
-                layer_=self.layer, blend_=self.blend, rect_=self.rect)
+                layer_=self.layer, blend_=self.blend, rect_=self.rect, life=self.life,
+                damage=self.damage)
 
     def explode(self):
 
@@ -185,8 +186,10 @@ class Player2(pygame.sprite.Sprite):
             PlayerHalo.images = HALO_SPRITE13
             PlayerHalo.containers = self.gl.All
             PlayerHalo(texture_name_='HALO_SPRITE13', object_=self, timing_=10)
+            self.kill()
 
     def collide(self, damage_):
+        print(self.life, damage_, self.life - damage_)
         if self.alive():
             self.life -= damage_
             self.gl.MIXER.play(sound_=IMPACT, loop_=False, priority_=0,
@@ -196,9 +199,9 @@ class Player2(pygame.sprite.Sprite):
                                screenrect_=self.gl.SCREENRECT)
             self.impact_sound_object.play()
 
-    def hit(self, damage_):
-        if self.alive():
-            self.life -= damage_
+    # def hit(self, damage_):
+    #    if self.alive():
+    #        self.life -= damage_
 
     def left_engine(self) -> AfterBurner:
         AfterBurner.images = EXHAUST
@@ -238,7 +241,6 @@ class Player2(pygame.sprite.Sprite):
 
             if self.life < 1:
                 self.explode()
-                self.kill()
 
             if self.gl.KEYS[pygame.K_UP]:
                 self.rect.move_ip(0, -self.speed * self.gl.SPEED_FACTOR)
@@ -255,10 +257,13 @@ class Player2(pygame.sprite.Sprite):
             if self.gl.KEYS[pygame.K_SPACE]:
                 if not Shot.is_reloading():
                     self.shooting_effect()
-                    Shot(self, self.rect.center, self.gl, self.timing, self.layer - 1, surface_name_='RED_LASER')
+                    Shot(self, self.rect.center, self.gl, self.timing,
+                         self.layer - 1, surface_name_='RED_LASER')
 
             # Broadcast the spaceship position every frames
-            self.player_object.update({'frame': self.gl.FRAME, 'rect': self.rect})
+            self.player_object.update({'frame': self.gl.FRAME,
+                                       'rect': self.rect,
+                                       'life': self.life})
             self.player_object.queue()
 
             if joystick is not None:
@@ -554,7 +559,7 @@ class SpriteServer(threading.Thread):
                 except socket.error as error:
                     print("\n[-]SpriteServer - Lost connection with Server...")
                     print("\n[-]SpriteServer - ERROR %s %s" % (error, time.ctime()))
-                    self.gl.SPRITE_SERVER_STOP
+                    self.gl.SPRITE_SERVER_STOP = True
                     nbytes = 0
 
                 buffer = self.view.tobytes()[:nbytes]
@@ -566,7 +571,7 @@ class SpriteServer(threading.Thread):
                 except ConnectionResetError as error:
                     print("\n[-]SpriteServer - Lost connection with Server...")
                     print("\n[-]SpriteServer - ERROR %s %s" % (error, time.ctime()))
-                    self.gl.SPRITE_SERVER_STOP
+                    self.gl.SPRITE_SERVER_STOP = True
 
                 try:
 
@@ -574,15 +579,20 @@ class SpriteServer(threading.Thread):
                     decompress_data = lz4.frame.decompress(buffer)
                     data = cpickle.loads(decompress_data)
 
-                except Exception:
+                except Exception as e:
+                    # Player 1 (is gone) server is dead!.
                     # The decompression error can also happen when
                     # the bytes stream sent is larger than the buffer size.
                     # raise RuntimeError('Problem during decompression/un-pickling')
+                    print(e)
                     print('Problem during decompression/un-pickling, '
                           'packet size %s, buffer size %s at frame %s'
                           % (nbytes, len(buffer) if buffer is not None else None, self.gl.FRAME))
                     # self.gl.SPRITE_SERVER_STOP
                     data = None
+                    self.gl.SPRITE_SERVER_STOP = True
+                    self.gl.SPRITE_CLIENT_STOP = True
+                    self.gl.STOP_GAME = True
 
                 # Clearing the transport group is essential in order
                 # to make sure that the transport sprite is still alive on the server side.
@@ -751,25 +761,26 @@ class SpriteServer(threading.Thread):
                             # If a sprite is not added to that group, it will be ignored
                             # and not display on the client side.
 
-                            if s is not None and len(self.gl.NetGroupAll) > 0:
-                                has_ = False
-                                for sprites in self.gl.NetGroupAll:
-                                    if sprites.id_ == s.id_:
-                                        has_ = True
-                                        sprites.rect = s.rect
-                                        sprites.image = sprite_.image
-                                        sprites.frame = sprite_.frame
-                                        if hasattr(sprite_, 'life'):
-                                            sprites.life = sprite_.life
-                                        if hasattr(sprite_, 'impact'):
-                                            sprites.impact = sprite_.impact
-                                        break
+                            if s is not None:
+                                if len(self.gl.NetGroupAll) > 0:
+                                    has_ = False
+                                    for sprites in self.gl.NetGroupAll:
+                                        if sprites.id_ == s.id_:
+                                            has_ = True
+                                            sprites.rect = s.rect
+                                            sprites.image = sprite_.image
+                                            sprites.frame = sprite_.frame
+                                            if hasattr(sprite_, 'life'):
+                                                sprites.life = sprite_.life
+                                            if hasattr(sprite_, 'impact'):
+                                                sprites.impact = sprite_.impact
+                                            break
 
-                                if not has_:
+                                    if not has_:
+                                        self.gl.NetGroupAll.add(s)
+
+                                else:
                                     self.gl.NetGroupAll.add(s)
-
-                            else:
-                                self.gl.NetGroupAll.add(s)
 
                     # Compare NetGroupAll group to data_set and delete sprite(s)
                     # accordingly. Sprites in NetGroupAll and not in data_set will
@@ -872,7 +883,7 @@ def collision_detection():
             collision.collide(P2.damage)
 
         # check collision between player 2 shots and asteroids
-        # delete the sprite after collision.
+        # delete the sprite sprite after collision.
         collision = pygame.sprite.groupcollide(GL.PLAYER_SHOTS, GL.ASTEROID, 1, 0)
         if collision is not None:
             for asteroid in collision.values():

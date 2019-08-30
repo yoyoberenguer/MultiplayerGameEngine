@@ -34,7 +34,7 @@ class GL(object):
     CONNECTION = False                      # True | False if a client is connected to socket
     SPRITE_SERVER_STOP = False               # STOP the SpriteServer thread
     SPRITE_CLIENT_STOP = False               # STOP the SpriteClient thread
-    RETRY = 100                              # Attempts before terminating network threads
+    RETRY = 2                              # Attempts before terminating network threads
     BUFFER = 2048
 
     REMOTE_FRAME = 0                        # Server frame number (Master frame number)

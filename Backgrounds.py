@@ -19,7 +19,7 @@ class Background(pygame.sprite.Sprite):
 
     def __init__(self,
                  vector_: pygame.math.Vector2,       # background speed vector (pygame.math.Vector2)
-                 position_: pygame.Vector2,          # original position (tuple)
+                 position_: pygame.math.Vector2,          # original position (tuple)
                  gl_,                    # global variables  (GL class)
                  layer_: int = -8,       # layer used default is -8 (int <= 0)
                  blend_: int = 0,        # pygame blend effect (e.g pygame.BLEND_RGB_ADD, or int)

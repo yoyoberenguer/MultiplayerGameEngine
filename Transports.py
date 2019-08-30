@@ -1,8 +1,10 @@
 from random import randint, uniform
 
 import pygame
+
+from CreateHalo import PlayerHalo
 from NetworkBroadcast import Broadcast, StaticSprite, SoundAttr, DetectCollisionSprite
-from Textures import EXPLOSION1, EXHAUST2, DISRUPTION_ORG, FIRE_PARTICLES
+from Textures import EXPLOSION1, EXHAUST2, DISRUPTION_ORG, FIRE_PARTICLES, EXPLOSION2, HALO_SPRITE13
 from Sounds import IMPACT1
 from Explosions import Explosion
 from AfterBurners import AfterBurner
@@ -68,9 +70,14 @@ class Transport(pygame.sprite.Sprite):
 
     def explode(self):
         if self.alive():
-            Explosion.images = EXPLOSION1
-            Explosion(self, self.rect.center, self.gl,
-                      self.timing, self.layer, texture_name_='EXPLOSION1')
+            Explosion.images = EXPLOSION2
+            for _ in range(10):
+                Explosion(self, (self.rect.centerx + randint(-100, 100), self.rect.centery+ randint(-100, 100)),
+                          self.gl, self.timing, self.layer, texture_name_='EXPLOSION2')
+
+            PlayerHalo.images = HALO_SPRITE13
+            PlayerHalo.containers = self.gl.All
+            PlayerHalo(texture_name_='HALO_SPRITE13', object_=self, timing_=10)
             self.kill()
 
     def collide(self, damage_):
@@ -154,10 +161,7 @@ class Transport(pygame.sprite.Sprite):
                                        images_=FIRE_PARTICLES,
                                        layer_=0, blend_=pygame.BLEND_RGB_ADD)
             if self.life < 1:
-                Explosion.images = EXPLOSION1
-                Explosion(self, self.rect.center, self.gl,
-                          self.timing, self.layer, texture_name_='EXPLOSION1')
-                self.kill()
+                self.explode()
 
             if self.impact:
                 self.image.blit(DISRUPTION_ORG[self.index % len(DISRUPTION_ORG) - 1],
@@ -167,8 +171,7 @@ class Transport(pygame.sprite.Sprite):
                     self.impact = False
                     self.index = 0
 
-            # if self.alive():
-            # Broadcast the spaceship position every frames
+            # Broadcast the spaceship position
             self.transport_object.update(
                 {'frame': self.gl.FRAME, 'rect': self.rect,
                  'damage': self.damage, 'life': self.life, 'impact': self.impact})
