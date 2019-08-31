@@ -32,7 +32,7 @@ class AfterBurner(pygame.sprite.Sprite):
         """
         Create an exhaust effect for the player's
 
-        :param parent_: Player's instance (Player1 or Player2)
+        :param parent_: Player's instance (MirroredPlayer1Class or MirroredPlayer2Class)
         :param gl_: Class GL (contains all the game constants
         :param offset_: tuple, offset location of the afterburner sprite (offset from the center)
         :param timing_: integer; Sprite refreshing time must be > 0
@@ -111,7 +111,7 @@ class AfterBurner(pygame.sprite.Sprite):
         """
         if self.dt > self.timing:
 
-            # checking if Player1 is still alive
+            # checking if MirroredPlayer1Class is still alive
             if self.parent.alive():
 
                 # display animation if self.images is a list.

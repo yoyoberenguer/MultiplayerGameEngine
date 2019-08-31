@@ -60,7 +60,7 @@ P1_SURFACE = pygame.transform.smoothscale(P1_SURFACE, (64, 64))
 P2_SURFACE = pygame.image.load('Assets\\Raven_128x128_red.png').convert_alpha()
 P2_SURFACE = pygame.transform.smoothscale(P2_SURFACE, (64, 64))
 
-BLUE_LASER = pygame.image.load('Assets\\lzrfx021_.png').convert_alpha()
+BLUE_LASER = pygame.image.load('Assets\\lzrfx021.png').convert_alpha()
 BLUE_LASER = pygame.transform.rotate(BLUE_LASER, 90)
 BLUE_LASER = pygame.transform.smoothscale(BLUE_LASER, (24, 35))
 
@@ -197,6 +197,32 @@ FRAME.fill((10, 15, 10, 200))
 FRAMEBORDER = pygame.image.load('Assets\\FrameBorder.png')
 FRAMEBORDER = pygame.transform.scale(FRAMEBORDER, (800, FRAMEBORDER.get_height()))
 FRAMEBORDER.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+SKULL = pygame.image.load('Assets\\toxigineSkull_.png').convert()
+SKULL = pygame.transform.smoothscale(
+    SKULL, (int(SKULL.get_width() * .8), int(SKULL.get_height() * .8)))
+SKULL.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+FINAL_MISSION = pygame.image.load('Assets\\container.png').convert()
+FINAL_MISSION = pygame.transform.smoothscale(
+    FINAL_MISSION, (int(FINAL_MISSION.get_width() * .8), int(FINAL_MISSION.get_height() * .8)))
+FINAL_MISSION.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+
+DIALOGBOX_READOUT = spread_sheet_fs8('Assets\\Readout_512x512_6x6_.png', 512, 6, 6)
+i = 0
+for surface in DIALOGBOX_READOUT:
+    # surface.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+    DIALOGBOX_READOUT[i] = pygame.transform.smoothscale(
+        surface, (FINAL_MISSION.get_width() - 150, FINAL_MISSION.get_height() - 150))
+    DIALOGBOX_READOUT[i] = pygame.transform.flip(DIALOGBOX_READOUT[i], True, True)
+    i += 1
+DIALOGBOX_READOUT_RED = spread_sheet_fs8('Assets\\Readout_512x512_6x6_red_.png', 512, 6, 6)
+i = 0
+for surface in DIALOGBOX_READOUT_RED:
+    # surface.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+    DIALOGBOX_READOUT_RED[i] = pygame.transform.smoothscale(
+        surface, (FINAL_MISSION.get_width() - 150, FINAL_MISSION.get_height() - 150))
+    DIALOGBOX_READOUT_RED[i] = pygame.transform.flip(DIALOGBOX_READOUT_RED[i], True, True)
+    i += 1
+
 
 
 

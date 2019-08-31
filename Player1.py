@@ -1,4 +1,5 @@
 # encoding: utf-8
+
 import os
 
 from pygame import freetype
@@ -43,6 +44,8 @@ try:
     from GLOBAL import GL
     from ShootingStars import ShootingStar
     from AfterBurners import AfterBurner
+    from End import PlayerLost
+    from PlayerScore import DisplayScore
 
 except ImportError:
     print("\nOne or more game libraries is missing on your system."
@@ -121,13 +124,13 @@ class LaserImpact(pygame.sprite.Sprite):
     containers = None
     images = None
 
-    def __init__(self, gl_, pos_, parent_, timing_=16, blend_=0, layer_=0):
+    def __init__(self, gl_, pos_, parent_, timing_=16, blend_=None, layer_=0):
         """
         Create an impact sprite effect (absorption effect) where the laser is colliding.
 
         :param gl_: class GL (contains all the game global variables)
         :param pos_: tuple of the impact position (x:int, y:int)
-        :param parent_: parent object (Player1 class instance)
+        :param parent_: parent object (MirroredPlayer1Class class instance)
         :param timing_: integer; refreshing time in milliseconds (default 16ms is 60FPS)
         :param blend_: integer; blend effect to apply to the sprite, default pygame.BLEND_RGB_ADD = 0
         :param layer_: integer < 0; represent the sprite layer. default = 0
@@ -138,11 +141,14 @@ class LaserImpact(pygame.sprite.Sprite):
         assert isinstance(pos_, tuple), \
             "Positional argument <pos_> is type %s , expecting tuple." % type(pos_)
         assert isinstance(parent_,  Asteroid), \
-            "Positional argument <parent_> is type %s , expecting class Player1 instance." % type(parent_)
+            "Positional argument <parent_> is type %s , expecting class MirroredPlayer1Class instance." % type(parent_)
         assert isinstance(timing_, int), \
             "Positional argument <timing_> is type %s , expecting integer." % type(timing_)
-        assert isinstance(blend_, int), \
-            "Positional argument <blend_> is type %s , expecting integer." % type(blend_)
+        if blend_ is None:
+            raise ValueError('Blend should not be unset!')
+        else:
+            assert isinstance(blend_, int), \
+                "Positional argument <blend_> is type %s , expecting integer." % type(blend_)
         assert isinstance(layer_, int), \
             "Positional argument <layer_> is type %s , expecting integer." % type(layer_)
 
@@ -235,7 +241,7 @@ class Shot(pygame.sprite.Sprite):
         :param surface_name_: string; surface name e.g 'BLUE_LASER'; surface = eval(BLUE_LASER')
         """
         assert isinstance(parent_, Player1), \
-            "Positional argument <parent_> is type %s , expecting class Player1 instance." % type(parent_)
+            "Positional argument <parent_> is type %s , expecting class MirroredPlayer1Class instance." % type(parent_)
         assert isinstance(pos_, tuple), \
             "Positional argument <pos_> is type %s , expecting tuple." % type(pos_)
         assert isinstance(timing_, int), \
@@ -271,7 +277,7 @@ class Shot(pygame.sprite.Sprite):
         self.position = pygame.math.Vector2(*self.pos)
         self.rect = self.image.get_rect(center=self.pos)
         self.dt = 0
-        self.blend = 0  # pygame.BLEND_RGBA_ADD
+        self.blend = pygame.BLEND_RGBA_ADD
 
         # todo test if convert_alpha otherwise this is useless
         self.mask = pygame.mask.from_surface(self.image)  # Image have to be convert_alpha compatible
@@ -441,11 +447,11 @@ class Player1(pygame.sprite.Sprite):
             "Positional argument <layer_> is type %s , expecting integer." % type(layer_)
 
         if self.containers is None:
-            raise ValueError('Player1.containers is not initialised.\nMake sure to assign the containers to'
-                             ' a pygame group prior instantiation.\ne.g: Player1.containers = pygame.sprite.Group()')
+            raise ValueError('MirroredPlayer1Class.containers is not initialised.\nMake sure to assign the containers to'
+                             ' a pygame group prior instantiation.\ne.g: MirroredPlayer1Class.containers = pygame.sprite.Group()')
         if self.image is None:
-            raise ValueError("Player1.image is not initialised.\nMake sure to assign a texture to "
-                             "prior instantiation.\ne.g: Player1.image = 'P1_SURFACE'")
+            raise ValueError("MirroredPlayer1Class.image is not initialised.\nMake sure to assign a texture to "
+                             "prior instantiation.\ne.g: MirroredPlayer1Class.image = 'P1_SURFACE'")
 
         pygame.sprite.Sprite.__init__(self, self.containers)
 
@@ -477,11 +483,9 @@ class Player1(pygame.sprite.Sprite):
         self.player_object = Broadcast(self.make_object())
         self.impact_sound_object = Broadcast(self.make_sound_object('IMPACT'))
 
-        self.disruption_object = Broadcast(BlendSprite(frame_=self.gl.FRAME, id_=self.id_, surface_="",
-                                                       layer_=self.layer, blend_=pygame.BLEND_RGB_ADD, rect_=self.rect,
-                                                       parent_=self.surface_name, pos_=(-20, -20), index_=0))
+        self.update_score = self.gl.P1_SCORE.score_update
 
-    def make_sound_object(self, sound_name_: str)->SoundAttr:
+    def make_sound_object(self, sound_name_: str) -> SoundAttr:
         """
         Create a sound object for network broadcasting.
         :param sound_name_: string; representing the texture to use e.g 'BLUE_LASER_SOUND"
@@ -498,14 +502,21 @@ class Player1(pygame.sprite.Sprite):
 
     def make_object(self) -> StaticSprite:
         """
-        Create a sprite object for network broadcast similar to Player1
+        Create a sprite object for network broadcast similar to MirroredPlayer1Class
         :return: StaticSprite object (see NetworkBroadcast library for more details)
         """
         # Only attributes self.gl.FRAME, self.rect are changing over the time.
         return StaticSprite(
                 frame_=self.gl.FRAME, id_=self.id_, surface_=self.surface_name,
-                layer_=self.layer, blend_=self.blend, rect_=self.rect, life=self.life)
+                layer_=self.layer, blend_=self.blend, rect_=self.rect, life=self.life, damage=self.damage)
 
+    def player_lost(self):
+        PlayerLost.containers = self.gl.All
+        PlayerLost.DIALOGBOX_READOUT_RED = DIALOGBOX_READOUT_RED
+        PlayerLost.SKULL = SKULL
+        font = freetype.Font('Assets\\Fonts\\Gtek Technology.ttf', size=14)
+        PlayerLost(gl_=self.gl, font_=font, image_=FINAL_MISSION, layer_=0)
+        
     def explode(self) -> None:
         """
         Player explosion sprites and halo
@@ -518,11 +529,12 @@ class Player1(pygame.sprite.Sprite):
             PlayerHalo.images = HALO_SPRITE13
             PlayerHalo.containers = self.gl.All
             PlayerHalo(texture_name_='HALO_SPRITE13', object_=self, timing_=10)
+            self.player_lost()
             self.kill()
 
     def collide(self, damage_: int) -> None:
         """
-        Player1 collide with object, transfer the damage and play the collision sound locally
+        MirroredPlayer1Class collide with object, transfer the damage and play the collision sound locally
         if life < 1, trigger player1 explosion.
 
         :param damage_: integer; must be > 0 (total damage transferred to the player after collision.)
@@ -540,6 +552,7 @@ class Player1(pygame.sprite.Sprite):
                                object_id_=id(IMPACT),
                                screenrect_=self.gl.SCREENRECT)         
             self.impact_sound_object.play()
+
     """
     def hit(self, damage_: int) -> None:
         
@@ -555,6 +568,7 @@ class Player1(pygame.sprite.Sprite):
         if self.alive():
             self.life -= damage_
     """
+
     def left_engine(self) -> AfterBurner:
         """
         Create a sprite for the left engine
@@ -581,15 +595,15 @@ class Player1(pygame.sprite.Sprite):
 
     def get_centre(self) -> tuple:
         """
-        Get Player1 position.
+        Get MirroredPlayer1Class position.
 
-        :return: tuple representing Player1 rect centre
+        :return: tuple representing MirroredPlayer1Class rect centre
         """
         return self.rect.center
 
     def disruption(self) -> None:
         """
-        Create an electric effect on Player1 hull.
+        Create an electric effect on MirroredPlayer1Class hull.
         :return: None
         """
         if 'DISRUPTION' in globals():
@@ -620,7 +634,7 @@ class Player1(pygame.sprite.Sprite):
 
     def update(self) -> None:
         """
-        Update Player1 sprite
+        Update MirroredPlayer1Class sprite
 
         :return: None
         """
@@ -680,7 +694,7 @@ class Player1(pygame.sprite.Sprite):
         self.disruption()
 
 
-class Player2(pygame.sprite.Sprite):
+class MirroredPlayer2Class(pygame.sprite.Sprite):
 
     def __init__(self, sprite_):
         """
@@ -688,19 +702,24 @@ class Player2(pygame.sprite.Sprite):
         :param sprite_: object containing all attributes
 
         >>> import pygame
+        >>> pygame.init()
+        (8, 0)
+        >>> SCREENRECT = pygame.Rect(0, 0, 800, 1024)
+        >>> screen = pygame.display.set_mode(SCREENRECT.size, pygame.HWSURFACE, 32)
+        >>> from Textures import P1_SURFACE, DISRUPTION
         >>> attributes = {'rect': pygame.Rect(0, 0, 0, 0),
-        ...     'image':None, 'blend':0, 'layer':-1, 'id_':35555, 'surface':'P1_SURFACE', 'damage': 800, 'life': 200}
+        ...     'image':eval('P1_SURFACE'), 'blend':0, 'layer':-1, 'id_':35555,
+        ...     'frame':0, 'damage': 800, 'life': 200, 'surface':'P1_SURFACE'}
         >>> sprite_ = pygame.sprite.Sprite()
         >>> for attr, value in attributes.items():
         ...     setattr(sprite_, attr, value)
-        >>> spr = Player2(sprite_)
-        >>> spr.update()
+        >>> spr = MirroredPlayer2Class(sprite_)
         >>> print(spr.surface)
         P1_SURFACE
 
         """
         assert sprite_ is not None, 'Positional argument sprite_ is None.'
-        attributes = ['rect', 'image', 'blend', 'layer', 'id_', 'surface']
+        attributes = ['rect', 'image', 'blend', 'layer', 'id_', 'frame', 'damage', 'life', 'surface']
         for attr in attributes:
             assert hasattr(sprite_, attr),\
                 'Positional argument sprite_ is missing attribute %s ' % attr
@@ -709,15 +728,22 @@ class Player2(pygame.sprite.Sprite):
 
         self.rect = sprite_.rect
         self.image = sprite_.image
+        self.image_copy = sprite_.image.copy()
         self.blend = sprite_.blend
         self.layer = sprite_.layer
         self.id_ = sprite_.id_
+        self.frame = sprite_.frame
         self.surface = sprite_.surface
         self.damage = sprite_.damage
-        self.life = sprite_.life
+        self.gl = GL
+
+    def disruption(self):
+        index = (FRAME >> 1) % len(DISRUPTION) - 1
+        self.image.blit(DISRUPTION[index], (-20, -20), special_flags=pygame.BLEND_RGB_ADD)
 
     def update(self) -> None:
-        ...
+        self.image = self.image_copy.copy()
+        self.disruption()
 
 
 class P2Shot(pygame.sprite.Sprite):
@@ -898,8 +924,16 @@ class SpriteServer(threading.Thread):
 
                         elif hasattr(sprite_, 'sound_name'):
 
-                            sound = eval(sprite_.sound_name)
-                            self.gl.MIXER.stop_object(id(sound))
+                            try:
+
+                                sound = eval(sprite_.sound_name)
+
+                            except NameError:
+                                raise NameError("\n[-]SpriteServer - Sound effect "
+                                                "'%s' does not exist " % sprite_.sound_name)
+
+                            # self.gl.MIXER.stop_object(id(sound))
+                            # play the sound locally
                             self.gl.MIXER.play(sound_=sound, loop_=False, priority_=0,
                                                volume_=1.0, fade_out_ms=0, panning_=True,
                                                name_=sprite_.sound_name, x_=sprite_.rect.centerx,
@@ -953,7 +987,7 @@ class SpriteServer(threading.Thread):
                             s = None
                             # find Player 2
                             if sprite_.surface == 'P2_SURFACE':
-                                s = Player2(sprite_)
+                                s = MirroredPlayer2Class(sprite_)
 
                             # find player 2 shots
                             elif sprite_.surface == "RED_LASER":
@@ -1106,7 +1140,7 @@ def collision_detection():
         if collision is not None:
             P1.collide(collision.damage)
             if hasattr(collision, 'collide'):
-                collision.collide(P1.damage)
+                collision.collide(P1, P1.damage)
             else:
                 print(type(collision))
                 raise AttributeError
@@ -1119,7 +1153,7 @@ def collision_detection():
             if asteroids is not None:
                 for aster in asteroids:
                     if hasattr(aster, 'hit'):
-                        aster.hit(100)
+                        aster.hit(P1, 100)
                         new_rect = shots.rect.clamp(aster.rect)  # todo need to make sure shots is not a list
                         shots.collide(rect_=new_rect, object_=aster)
                     else:
@@ -1133,7 +1167,7 @@ def collision_detection():
             if asteroids is not None:
                 for aster in asteroids:
                     if hasattr(aster, 'hit'):
-                        aster.hit(100)
+                        aster.hit(None, 100)
                         new_rect = shots.rect.clamp(aster.rect)  # todo need to make sure shots is not a list
                         shots.collide(rect_=new_rect, object_=aster)
                     else:
@@ -1154,14 +1188,14 @@ def collision_detection():
             # Pass only damage to the asteroid
             collision.collide(p2.damage)
 
-    # Transport collision with asteroid
+    # MirroredTransportClass collision with asteroid
     if T1 is not None and T1.alive():
         # todo check collision masks
         collision = pygame.sprite.spritecollideany(T1, GL.ASTEROID, collided=pygame.sprite.collide_mask)
         if collision is not None:
             T1.collide(collision.damage)
             if hasattr(collision, 'collide'):
-                collision.collide(T1.damage)
+                collision.collide(T1, T1.damage)
             else:
                 print(type(collision))
                 raise AttributeError
@@ -1347,6 +1381,10 @@ if __name__ == '__main__':
     ShootingStar.containers = GL.All
     ShootingStar.image = SHOOTING_STAR
 
+    DisplayScore.containers = GL.All
+    DisplayScore.images = pygame.Surface((10, 10))
+    GL.P1_SCORE = DisplayScore(gl_=GL, timing_=15)
+
     P1 = Player1(GL, 15, (screen.get_size()[0] // 2, screen.get_size()[1] // 2))
     # P1 = None
     T1 = Transport(gl_=GL, timing_=15,
@@ -1361,7 +1399,7 @@ if __name__ == '__main__':
     FRAME = 0
     GL.FRAME = 0
 
-    GL.MIXER = SoundControl(20)
+    GL.MIXER = SoundControl(30)
 
     f = open('P1_log.txt', 'w')
 
@@ -1376,7 +1414,7 @@ if __name__ == '__main__':
         event_obj = EventAttr(event_=GL.NEXT_FRAME, frame_=GL.FRAME)
         Broadcast(event_obj).next_frame()
 
-        if len(GL.ASTEROID) < 25:
+        if len(GL.ASTEROID) < 15:
             asteroid = random.choices(['DEIMOS', 'EPIMET'])[0]
             scale = random.uniform(0.1, 0.5)
             rotation = random.randint(0, 360)
@@ -1439,6 +1477,7 @@ if __name__ == '__main__':
 
         # Draw the network sprite above the background
         if GL.CONNECTION:
+            GL.NetGroupAll.update()  # -> run all the update method
             GL.NetGroupAll.draw(screen)
 
         # *************************************************************

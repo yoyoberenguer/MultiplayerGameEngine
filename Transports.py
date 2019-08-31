@@ -1,13 +1,16 @@
 from random import randint, uniform
 
 import pygame
+from pygame import freetype
 
 from CreateHalo import PlayerHalo
 from NetworkBroadcast import Broadcast, StaticSprite, SoundAttr, DetectCollisionSprite
-from Textures import EXPLOSION1, EXHAUST2, DISRUPTION_ORG, FIRE_PARTICLES, EXPLOSION2, HALO_SPRITE13
-from Sounds import IMPACT1
+from Textures import EXPLOSION1, EXHAUST2, DISRUPTION_ORG, FIRE_PARTICLES, EXPLOSION2, HALO_SPRITE13, \
+    DIALOGBOX_READOUT_RED, SKULL, FINAL_MISSION
+from Sounds import IMPACT1, EXPLOSION_SOUND
 from Explosions import Explosion
 from AfterBurners import AfterBurner
+from End import PlayerLost
 
 
 __author__ = "Yoann Berenguer"
@@ -38,7 +41,8 @@ class Transport(pygame.sprite.Sprite):
         self.layer = layer_
         self.blend = 0
         self.previous_pos = pygame.math.Vector2()            # previous position
-        self.life = 1000                                     # Transport max hit points
+        self.max_life = 5000
+        self.life = 5000                                     # MirroredTransportClass max hit points
         self.damage = 10000                                  # Damage transfer after collision
         self.mask = pygame.mask.from_surface(self.image)     # Image have to be convert_alpha compatible
         self.pos = pos_
@@ -68,12 +72,22 @@ class Transport(pygame.sprite.Sprite):
                            calc_pos, self.timing, pygame.BLEND_RGB_ADD,
                            self.layer - 1, texture_name_='EXHAUST2')
 
+    def player_lost(self):
+        PlayerLost.containers = self.gl.All
+        PlayerLost.DIALOGBOX_READOUT_RED = DIALOGBOX_READOUT_RED
+        PlayerLost.SKULL = SKULL
+        font = freetype.Font('Assets\\Fonts\\Gtek Technology.ttf', size=14)
+        PlayerLost(gl_=self.gl, font_=font, image_=FINAL_MISSION, layer_=0)
+        # todo kill player 1 and 2 game is over
+
     def explode(self):
         if self.alive():
             Explosion.images = EXPLOSION2
-            for _ in range(10):
-                Explosion(self, (self.rect.centerx + randint(-100, 100), self.rect.centery+ randint(-100, 100)),
-                          self.gl, self.timing, self.layer, texture_name_='EXPLOSION2')
+            for i in range(10):
+                Explosion(self, (self.rect.centerx + randint(-100, 100),
+                                 self.rect.centery + randint(-100, 100)),
+                          self.gl, self.timing, self.layer,
+                          texture_name_='EXPLOSION2', mute_=False if i > 0 else True)
 
             PlayerHalo.images = HALO_SPRITE13
             PlayerHalo.containers = self.gl.All
@@ -154,7 +168,7 @@ class Transport(pygame.sprite.Sprite):
 
             self.image = self.image_copy.copy()
 
-            if self.life < 2000:
+            if self.life < (self.max_life // 2):
                 position = pygame.math.Vector2(randint(-50, 50), randint(-100, 100))
                 self.fire_particles_fx(position_=position + pygame.math.Vector2(self.rect.center),
                                        vector_=pygame.math.Vector2(uniform(-1, 1), uniform(+1, +3)),
@@ -186,3 +200,4 @@ class Transport(pygame.sprite.Sprite):
 
         else:
             self.dt += self.gl.TIME_PASSED_SECONDS
+

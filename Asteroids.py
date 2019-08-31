@@ -135,7 +135,7 @@ class Asteroid(pygame.sprite.Sprite):
                  layer_: int = 0):
         """
 
-        :param asteroid_name_: strings, Asteroid name
+        :param asteroid_name_: strings, MirroredAsteroidClass name
         :param gl_: class GL (contains all the game constant)
         :param blend_: integer, Sprite blend effect, must be > 0
         :param rotation_: integer, Object rotation in degrees
@@ -189,15 +189,20 @@ class Asteroid(pygame.sprite.Sprite):
         self.asteroid_name = asteroid_name_
         self.blend = blend_
         self.mask = pygame.mask.from_surface(self.image)
+        # MirroredAsteroidClass life points (proportional to its size)
         self.life = randint(self.rect.w,
                             max(self.rect.w, (self.rect.w >> 1) * 10))
+        # MirroredAsteroidClass value in case of destruction.
+        self.points = self.life
+        # Collision damage, how much life point
+        # will be removed from players and transport in case of collision
         self.damage = self.life >> 1
+
         self.layer = layer_
         self.index = 0
         self.has_been_hit = False
         self.id_ = id(self)
         self.asteroid_object = Broadcast(self.make_object())
-        self.explosion_sound_object = Broadcast(self.make_sound_object('EXPLOSION_SOUND'))
         self.impact_sound_object = Broadcast(self.make_sound_object('IMPACT'))
 
     def make_sound_object(self, sound_name_: str) -> SoundAttr:
@@ -224,7 +229,8 @@ class Asteroid(pygame.sprite.Sprite):
         return DetectCollisionSprite(
                 frame_=self.gl.FRAME, id_=self.id_, surface_=self.asteroid_name,
                 layer_=self.layer, blend_=self.blend, rect_=self.rect,
-                rotation_=self.rotation, scale_=self.scale, damage_=self.damage, life_=self.life)
+                rotation_=self.rotation, scale_=self.scale, damage_=self.damage,
+                life_=self.life, points_=self.points)
 
     def make_debris(self) -> None:
         """
@@ -262,13 +268,6 @@ class Asteroid(pygame.sprite.Sprite):
             Explosion(self, self.rect.center,
                       self.gl, self.timing, 0, texture_name_='EXPLOSION1')  # self.layer)
 
-            self.gl.MIXER.play(sound_=EXPLOSION_SOUND, loop_=False, priority_=0,
-                               volume_=1.0, fade_out_ms=0, panning_=True,
-                               name_='EXPLOSION_SOUND', x_=self.rect.centerx,
-                               object_id_=id(EXPLOSION_SOUND),
-                               screenrect_=self.gl.SCREENRECT)           
-            self.explosion_sound_object.play()
-
             # Create Halo sprite
             AsteroidHalo.images = choice([HALO_SPRITE12, HALO_SPRITE14])
             AsteroidHalo.containers = self.gl.All
@@ -279,10 +278,11 @@ class Asteroid(pygame.sprite.Sprite):
             self.make_debris()
             self.kill()
 
-    def hit(self, damage_: int) -> None:
+    def hit(self, player_=None, damage_: int = 0) -> None:
         """
         Check asteroid life after laser collision.
 
+        :param player_: Player instance
         :param damage_: integer; Damage received
         :return: None
         """
@@ -295,13 +295,16 @@ class Asteroid(pygame.sprite.Sprite):
         self.has_been_hit = True
 
         if self.life < 1:
+            if player_ is not None:
+                player_.update_score(self.points)
             self.explode()
 
-    def collide(self, damage_) -> None:
+    def collide(self, player_=None,  damage_: int = 0) -> None:
         """
         Check asteroid life after collision with players or transport
 
-        :param damage_:
+        :param player_: Player instance
+        :param damage_: integer; Damage received
         :return: None
         """
         assert isinstance(damage_, int), \
@@ -313,12 +316,16 @@ class Asteroid(pygame.sprite.Sprite):
         # play the impact sound locally
         self.gl.MIXER.play(sound_=IMPACT1, loop_=False, priority_=0,
                            volume_=1.0, fade_out_ms=0, panning_=True,
-                           name_='IMPACT', x_=self.rect.centerx,
+                           name_='IMPACT1', x_=self.rect.centerx,
                            object_id_=id(IMPACT1),
                            screenrect_=self.gl.SCREENRECT)
         self.impact_sound_object.play()
 
         if self.life < 1:
+
+            if not type(player_).__name__ == 'Transport':
+                if player_ is not None:
+                    player_.update_score(self.points)
             self.make_debris()
             self.kill()
         ...

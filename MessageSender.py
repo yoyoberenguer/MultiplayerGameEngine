@@ -73,7 +73,7 @@ class SpriteClient(threading.Thread):
 
         old_data = Broadcast.MessageQueue
 
-        # todo self.gl.P1CS_STOP is for Player1 what about Player2
+        # todo self.gl.P1CS_STOP is for MirroredPlayer1Class what about MirroredPlayer2Class
         while not self.gl.P1CS_STOP and not self.gl.SPRITE_CLIENT_STOP:
 
             # check for the signal.

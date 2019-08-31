@@ -16,7 +16,7 @@ class Explosion(pygame.sprite.Sprite):
     containers = None
 
     def __init__(self, parent_, pos_,
-                 gl_, timing_, layer_, texture_name_):
+                 gl_, timing_, layer_, texture_name_, mute_=False):
 
         self.layer = layer_
         pygame.sprite.Sprite.__init__(self, self.containers)
@@ -38,21 +38,41 @@ class Explosion(pygame.sprite.Sprite):
         self.index = 0
         self.id_ = id(self)
         self.texture_name = texture_name_
-        # if self.gl.MIXER.get_identical_id(id(EXPLOSION_SOUND)):
-        #    self.gl.MIXER.stop_object(id(EXPLOSION_SOUND))
+        self.mute = mute_
+        # Create the network object
+        self.explosion_object = Broadcast(self.make_object())
+        # Create sound object
+        self.explosion_sound_object = Broadcast(self.make_sound_object('EXPLOSION_SOUND'))
 
+    def play_explosion_sound(self) -> None:
+        """
+        Play the sound explosion locally and forward the sound object to the client(s).
+
+        :return: None
+        """
+
+        # play the sound locally
         self.gl.MIXER.play(sound_=EXPLOSION_SOUND, loop_=False, priority_=0,
                            volume_=1.0, fade_out_ms=0, panning_=True,
                            name_='EXPLOSION_SOUND', x_=self.rect.centerx,
                            object_id_=id(EXPLOSION_SOUND),
                            screenrect_=self.gl.SCREENRECT)
-        
-        self.sound_object = Broadcast(self.make_sound_object('EXPLOSION_SOUND'))
-        self.sound_object.play()
-             
-        self.explosion_object = Broadcast(self.make_object())
-        
+        # Add the sound object to the queue
+        self.explosion_sound_object.play()
+
     def make_sound_object(self, sound_name_: str) -> SoundAttr:
+        """
+        Create a network sound object
+
+        :param sound_name_: string; represent the sound name e.g 'EXPLOSION_SOUND"
+        :return: SoundAttr object
+        """
+        assert isinstance(sound_name_, str), \
+            "Positional argument <sound_name_> is type %s , expecting string." % type(sound_name_)
+
+        if sound_name_ not in globals():
+            raise NameError('Sound %s is not define.' % sound_name_)
+
         return SoundAttr(frame_=self.gl.FRAME, id_=self.id_, sound_name_=sound_name_, rect_=self.rect)
 
     def make_object(self) -> AnimatedSprite:
@@ -66,6 +86,9 @@ class Explosion(pygame.sprite.Sprite):
 
             if self.rect.colliderect(self.gl.SCREENRECT):
 
+                if self.index == 0 and not self.mute:
+                    self.play_explosion_sound()
+
                 self.image = self.images_copy[self.index]
                 self.rect = self.image.get_rect(center=self.rect.center)
                 self.index += 1
@@ -78,6 +101,8 @@ class Explosion(pygame.sprite.Sprite):
             else:
                 self.kill()
 
+        # update the network object every frames to avoid flickering appearance
+        # on client side.
         if self.rect.colliderect(self.gl.SCREENRECT):
             self.explosion_object.update({'frame': self.gl.FRAME,
                                           'rect': self.rect,

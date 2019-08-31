@@ -254,7 +254,7 @@ class JoystickServer(threading.Thread):
                         print('Joystick balls %s ' % pyobject.balls)
                         print('Joystick balls_status %s ' % pyobject.balls_status)
 
-                        self.gl.P2JNI = pyobject  # Player2 Joystick network inputs
+                        self.gl.P2JNI = pyobject  # MirroredPlayer2Class Joystick network inputs
                     
 
             """

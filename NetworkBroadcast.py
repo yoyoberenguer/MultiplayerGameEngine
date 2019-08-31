@@ -65,7 +65,7 @@ class StaticSprite(DefaultAttr):
         """
         StaticSprite class convert a static sprite object (single surface) into a simple object containing
         similar attributes and values.
-        Example of static object : Player1 (single texture: P1_SURFACE)
+        Example of static object : MirroredPlayer1Class (single texture: P1_SURFACE)
 
         :param frame_: integer > 0; The actual frame number
         :param id_: integer; object memory location
@@ -175,7 +175,8 @@ class AnimatedSprite(StaticSprite):
 class DetectCollisionSprite(AnimatedSprite):
     def __init__(self, frame_: int = None, id_: int = None, surface_: str = '',
                  layer_: int = None, blend_: int = None, rect_: pygame.Rect = None,
-                 index_: int = 0, rotation_: int = 0, scale_: int = 1, damage_: int = 0, life_: int = 0):
+                 index_: int = 0, rotation_: int = 0, scale_: int = 1, damage_: int = 0,
+                 life_: int = 0, points_: int = 0):
         """
 
         :param frame_:
@@ -189,12 +190,14 @@ class DetectCollisionSprite(AnimatedSprite):
         :param scale_:
         :param damage_:
         :param life_:
+        :param points_:
         """
         AnimatedSprite.__init__(self, frame_=frame_, id_=id_, surface_=surface_,
                                 layer_=layer_, blend_=blend_, rect_=rect_, index_=index_,
                                 rotation_=rotation_, scale_=scale_)
         self.damage = damage_
         self.life = life_
+        self.points = points_
 
 
 class BlendSprite(object):

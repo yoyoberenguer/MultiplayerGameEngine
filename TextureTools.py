@@ -1,5 +1,8 @@
 import numpy
 import pygame
+import math
+import random
+
 
 
 __author__ = "Yoann Berenguer"
@@ -88,6 +91,33 @@ def spread_sheet_per_pixel_fs8(file: str, chunk: int, rows_: int, columns_: int,
             animation.append(surface__)
     return animation
 
+
+def spread_sheet_per_pixel(file_: str, chunk: int, rows_: int, columns_: int) -> list:
+    """ Not to be used with asymetric surface """
+    surface = pygame.image.load(file_)
+    buffer_ = surface.get_view('2')
+
+    w, h = surface.get_size()
+    source_array = numpy.frombuffer(buffer_, dtype=numpy.uint8).reshape((h, w, 4))
+    animation = []
+
+    for rows in range(rows_):
+        for columns in range(columns_):
+
+            array1 = source_array[rows * chunk:(rows + 1) * chunk,
+                         columns * chunk:(columns + 1) * chunk, :]
+
+            # surface_ = pygame.image.frombuffer(array1.copy(order='C'),
+            #                      (tuple(array1.shape[:2])), 'RGBA').convert_alpha()
+
+            surface_ = pygame.image.frombuffer(numpy.ascontiguousarray(array1),
+                                  (array1.shape[0], array1.shape[1]), 'RGBA')
+
+            animation.append(surface_.convert(32, pygame.SWSURFACE | pygame.RLEACCEL | pygame.SRCALPHA))
+
+    return animation
+
+
 def make_array(rgb_array_: numpy.ndarray, alpha_: numpy.ndarray) -> numpy.ndarray:
     """
     This function is used for 24-32 bit pygame surface with pixel alphas transparency layer
@@ -172,3 +202,481 @@ def add_transparency_all(rgb_array: numpy.ndarray, alpha_: numpy.ndarray, value:
     numpy.putmask(alpha_, alpha_ < 0, 0)
 
     return make_surface(make_array(rgb_array, alpha_.astype(numpy.uint8))).convert_alpha()
+
+
+
+def hsv_to_rgb(h, s, v):
+    if s == 0.0:
+        return v, v, v
+    i = int(h*6.0) # XXX assume int() truncates!
+    f = (h*6.0) - i
+    p = v*(1.0 - s)
+    q = v*(1.0 - s*f)
+    t = v*(1.0 - s*(1.0-f))
+    i = i%6
+    if i == 0:
+        return v, t, p
+    if i == 1:
+        return q, v, p
+    if i == 2:
+        return p, v, t
+    if i == 3:
+        return p, q, v
+    if i == 4:
+        return t, p, v
+    if i == 5:
+        return v, p, q
+    # Cannot get here
+
+
+
+def shift_hue(r, g, b, shift_):
+    """ hue shifting algorithm
+        Transform an RGB color into its hsv equivalent and rotate color with shift_ parameter
+        then transform hsv back to RGB."""
+    # The HSVA components are in the ranges H = [0, 360], S = [0, 100], V = [0, 100], A = [0, 100].
+    h, s, v, a = pygame.Color(int(r), int(g), int(b)).hsva
+    # shift the hue and revert back to rgb
+    rgb_color = colorsys.hsv_to_rgb((h + shift_) * 0.002777, s * 0.01, v * 0.01) # (1/360, 1/100, 1/100)
+    return rgb_color[0] * 255, rgb_color[1] * 255, rgb_color[2] * 255
+
+
+def hue_surface(surface_: pygame.Surface, shift_: int):
+    """
+    Only surface with 32 - 24 bits depth color are compatible.
+    Change colors from a given pygame surface and returns a surface with
+    color values shifted.
+
+    :param surface_: pygame.Surface to use for shifting colors (hue)
+    :param shift_:  value 0 to 360 degrees
+    :return: returns a pygame.surface with colors values shifted
+    """
+    rgb_array = pygame.surfarray.pixels3d(surface_)
+    alpha_array = pygame.surfarray.pixels_alpha(surface_)
+
+    vectorize_ = numpy.vectorize(shift_hue)
+    source_array_ = vectorize_(rgb_array[:, :, 0], rgb_array[:, :, 1], rgb_array[:, :, 2], shift_)
+
+    source_array_ = numpy.array(source_array_).transpose(1, 2, 0)
+    #array = make_array(source_array_, alpha_array)
+    #return make_surface(array).convert_alpha()
+    array = numpy.dstack((source_array_, alpha_array))
+    return pygame.image.frombuffer((array.transpose(1, 0, 2)).copy(order='C').astype(numpy.uint8),
+                                   (array.shape[:2][0], array.shape[:2][1]), 'RGBA').convert_alpha()
+
+
+def shift_lightness(r, g, b, shift_):
+    """ image lightness shifting algorithm
+        Transform an RGB color into hsl (hue, saturation, lightness) values and adjust
+        pixels intensity
+        then transform hsv back to RGB."""
+    h, s, l, a = pygame.Color(int(r), int(g), int(b)).hsla
+    # shift the hue
+    h, s, l = (
+                h * 0.002777,               # H Hue
+                s * 0.01 ,                  # S Saturation
+                min((l + shift_) * 0.01, 1) # L lightness, cap the value to 1
+               )  # (1/360, 1/100, 1/100)
+    rgb_color = colorsys.hsv_to_rgb(h, s, l)
+    return rgb_color[0] * 255, rgb_color[1] * 255, rgb_color[2] * 255
+
+
+def lightness(surface_: pygame.Surface, shift_: int):
+    """
+    Only surface with 32 - 24 bits depth color are compatible.
+    Change an image intensity using hsl method
+
+    :param surface_: pygame.Surface
+    :param shift_:  value 0 to 200 representing the image intensity
+    :return: returns a pygame.surface with a different intensity
+    """
+    rgb_array = pygame.surfarray.pixels3d(surface_)
+    alpha_array = pygame.surfarray.pixels_alpha(surface_)
+
+    vectorize_ = numpy.vectorize(shift_lightness)
+    source_array_ = vectorize_(rgb_array[:, :, 0], rgb_array[:, :, 1], rgb_array[:, :, 2], shift_)
+
+    source_array_ = numpy.array(source_array_).transpose(1, 2, 0)
+    array = make_array(source_array_, alpha_array)
+    return make_surface(array)
+
+
+def smi_gradient(value, index_):
+    """ Create a gradient array and get a specific gradient value from it """
+
+    diff_ = numpy.array((0, 255, 0) - numpy.array((255, 0, 0)))
+    row = numpy.arange(value, dtype='float') / value
+    row = numpy.repeat(row[:, numpy.newaxis], [3], 1)
+    diff_ = numpy.repeat(diff_[numpy.newaxis, :], [value], 0)
+    row = numpy.add(numpy.array((255, 0, 0), numpy.float), numpy.array((diff_ * row), numpy.float),
+                    dtype=numpy.float)
+    return row[index_ % value]
+
+
+# Slow algorithm converting color surface into greyscale
+# iterate over all pixels from the surface with the method
+# get_pixel, set_pixel
+# This method determine the greyscale from the RGB values.
+# Alpha channel (alpha transparency and per-pixels method will be ignored.
+# The final result is a surface containing all pixels represented
+# by a shade of gray colors. The final surface may differ from the original
+# surface (especially for surface containing per-pixel transparency).
+# Pixels around object edges tend to be slightly more transparent, used for
+# anti-aliases effect but also to soften the image around the edges
+# Using this method will cancel those effect and will show every pixels.
+# Compatible with 8, 24, 32 bits depth surfaces with or without alpha
+# transparency.
+def greyscale_pixels(image):
+    w, h = image.get_size()
+    new = pygame.Surface((w, h))
+    for i in range(w):
+        for j in range(h):
+          red, green, blue, alpha = image.get_at((i, j))
+          grey= int((red + green + blue) * 0.33)
+          new.set_at((i, j),(grey, grey, grey))
+
+    # Use the pygame method convert_alpha() in order to restore
+    # the per-pixel transparency, otherwise use set_colorkey() or set_alpha()
+    # methods to restore alpha transparency before blit.
+    return new
+
+
+# Decompose a surface in multiple array representing
+# red, green, blue colors and process the grey values.
+# This algorithm transfer the alpha channel in
+# the final result.
+# This method is compatible only for 32 bit surface containing
+# an alpha channel transparency.
+def greyscale_rgb(image:pygame.Surface):
+  alpha = pygame.surfarray.pixels_alpha(image)
+  red = pygame.surfarray.pixels_red(image) /3
+  green = pygame.surfarray.pixels_green(image) /3
+  blue = pygame.surfarray.pixels_blue(image) /3
+  grey = numpy.add(red,green,blue)
+  grey = numpy.repeat(grey[:,:, numpy.newaxis], 3, 2)
+  array = make_array(grey, alpha)
+  return make_surface(array)
+
+
+# Use the vectorize method to change a colored
+# surface into a greyscale surface
+# This algorithm transfer the alpha channel in
+# the final result.
+# This method is compatible only for 32 bit surface containing
+# an alpha channel transparency.
+def grayscale(red, green, blue):
+    gray = int(red * 0.299 + green * 0.587 + blue * 0.114)
+    return gray, gray, gray
+
+def greyscale_vectorize(image:pygame.Surface):
+    rgb_array = pygame.surfarray.pixels3d(image)
+    alpha_array = pygame.surfarray.pixels_alpha(image)
+
+    vectorize_ = numpy.vectorize(grayscale)
+    source_array_ = vectorize_(rgb_array[:, :, 0], rgb_array[:, :, 1], rgb_array[:, :, 2])
+
+    source_array_ = numpy.array(source_array_).transpose(1, 2, 0)
+    array = make_array(source_array_, alpha_array)
+    return make_surface(array)
+
+
+# Fastest algorithm for converting a
+# colored surface into greyscale
+# This algorithm transfer the alpha channel in
+# the final result.
+# This method is compatible only for 32 bit surface containing
+# an alpha channel transparency.
+def fast_greyscale(image):
+    array = pygame.surfarray.pixels3d(image)
+    alpha = pygame.surfarray.pixels_alpha(image)
+    grey = (array[:,:, 0] * 0.299 + array[:,:, 1] * 0.587 + array[:, :, 2] * 0.114)
+    array[:, :, 0], array[:, :, 1], array[:, :, 2] = grey, grey, grey
+    return make_surface(make_array(array, alpha))
+
+# Darker a given pygame surface (shadow effect)
+# The surface must be 32bit with transparency layer
+def shadow(image):
+    assert image.get_bitsize() is 32, \
+        'Surface pixel format is not 32 bit, got %s ' % image.get_bitsize()
+    array = pygame.surfarray.pixels3d(image)
+    alpha = pygame.surfarray.pixels_alpha(image)
+    grey = (array[:,:, 0] + array[:,:, 1] + array[:, :, 2]) * 0.01
+    array[:, :, 0], array[:, :, 1], array[:, :, 2] = grey, grey, grey
+    return make_surface(make_array(array, alpha))
+
+# Shadow effect.
+# darker a pygame 24 bit surface without alpha per pixel transparency
+def shadow_24bit(image):
+    assert image.get_bitsize() is 24, \
+        'Surface pixel format is not 24 bit, got %s ' % image.get_bitsize()
+    array = pygame.surfarray.pixels3d(image)
+    # alpha = pygame.surfarray.array_colorkey(image)
+    grey = (array[:,:, 0] + array[:,:, 1] + array[:, :, 2]) * 0.01
+    array[:, :, 0], array[:, :, 1], array[:, :, 2] = grey, grey, grey
+    return pygame.surfarray.make_surface(array)
+
+# Invert a 32 bit surface colors
+def invert_surface_32bit(image):
+    assert image.get_bitsize() is 32, \
+        'Surface pixel format is not 32 bit, got %s ' % image.get_bitsize()
+    array = pygame.surfarray.pixels3d(image)
+    alpha = pygame.surfarray.pixels_alpha(image)
+    array = numpy.invert(numpy.array(array, dtype=numpy.uint8))
+    return make_surface(make_array(array, alpha))
+
+# Invert a 24 bit surface colors
+def invert_surface_24bit(image):
+    assert image.get_bitsize() is 24, \
+        'Surface pixel format is not 24 bit, got %s ' % image.get_bitsize()
+    array = pygame.surfarray.pixels3d(image)
+    array = numpy.invert(numpy.array(array, dtype=numpy.uint8))
+    return pygame.surfarray.make_surface(array)
+
+
+# Horizontal glitch effect
+def hge(texture_, rad1_, frequency_, amplitude_):
+    w, h = texture_.get_size()
+    w2, h2 = w >> 1, h >> 1
+    vector = pygame.math.Vector2(x=0, y=-1)
+    position = pygame.math.Vector2(x=w >> 1, y=h - 1)
+    rad = math.pi / 180
+    angle, angle1 = 0, 0
+    glitch = pygame.Surface((w, h), pygame.SRCALPHA)
+    glitch.lock()
+    while position.y > 0:
+        for x in range(-w2 + amplitude_, w2 - amplitude_):
+            glitch.set_at((int(position.x + x), int(position.y)),
+                          texture_.get_at((int(position.x + x + math.cos(angle) * amplitude_),
+                                           int(position.y))))
+        position += vector
+        angle1 += frequency_ * rad
+        angle += rad1_ * rad + random.uniform(-angle1, angle1)
+    glitch.unlock()
+    return glitch
+
+
+# Vertical glitch effect
+def vge(texture_, rad1_, frequency_, amplitude_):
+    w, h = texture_.get_size()
+    w2, h2 = w >> 1, h >> 1
+    vector = pygame.math.Vector2(x=0, y=-1)
+    position = pygame.math.Vector2(x=w >> 1, y=h - 1)
+    rad = math.pi / 180
+    angle, angle1 = 0, 0
+    glitch = pygame.Surface((w, h), pygame.SRCALPHA)
+    glitch.lock()
+    while position.y > amplitude_:
+        for x in range(-w2 + amplitude_, w2 - amplitude_):
+            glitch.set_at((int(position.x + x), int(position.y)),
+                          texture_.get_at((int(position.x + x),
+                                           int(position.y - abs(math.sin(angle) * amplitude_)))))
+
+        position += vector
+        angle1 += frequency_ * rad
+        angle += rad1_ * rad + random.uniform(-angle1, angle1)
+    glitch.unlock()
+    return glitch
+
+# horizontal glitch effect with blur
+def hge_blur(texture_, rad1_, frequency_, amplitude_):
+    w, h = texture_.get_size()
+    w2, h2 = w >> 1, h >> 1
+    vector = pygame.math.Vector2(x=0, y=-1)
+    position = pygame.math.Vector2(x=w >> 1, y=h - 1)
+    rad = math.pi / 180
+    angle = 0
+    angle1 = 0
+    glitch = pygame.Surface((w, h), pygame.SRCALPHA)
+    # Kernel 5x5
+    kernel_size = 7
+    kernel_half = 3
+    glitch.lock()
+    while position.y > 5:
+        for x in range(-w2 + amplitude_, w2 - amplitude_):
+            glitch.set_at((int(position.x + x), int(position.y)),
+                                pygame.transform.average_color(texture_,
+                                                               (int(position.x + x + math.cos(
+                                                                   angle) * amplitude_ - kernel_half),
+                                                                int(position.y - kernel_half),
+                                                                kernel_size, kernel_size)))
+        position += vector
+        angle1 += frequency_ * rad
+        angle += rad1_ * rad + random.uniform(-angle1, angle1)
+    glitch.unlock()
+    return glitch
+
+# vertical glitch effect with blur
+def vge_blur(texture_, rad1_, frequency_, amplitude_):
+    w, h = texture_.get_size()
+    w2, h2 = w >> 1, h >> 1
+    vector = pygame.math.Vector2(x=0, y=-1)
+    position = pygame.math.Vector2(x=w >> 1, y=h - 1)
+    rad = math.pi / 180
+    angle = 0
+    angle1 = 0
+    glitch = pygame.Surface((w, h), pygame.SRCALPHA)
+    # Kernel 5x5
+    kernel_size = 7
+    kernel_half = 3
+    glitch.lock()
+    while position.y > 5:
+        for x in range(-w2 + amplitude_, w2 - amplitude_):
+            glitch.set_at((int(position.x + x), int(position.y)),
+                                pygame.transform.average_color(texture_,
+                                                               (int(position.x + x - kernel_half),
+                                                                int(position.y - kernel_half + abs(
+                                                                    math.sin(angle)) * amplitude_),
+                                                                kernel_size, kernel_size)))
+
+        position += vector
+        angle1 += frequency_ * rad
+        angle += rad1_ * rad + random.uniform(-angle1, angle1)
+    glitch.unlock()
+    return glitch
+
+
+# Wave algorithm both direction x, y
+def wave_xy(texture_, rad1_, amplitude_):
+    w, h = texture_.get_size()
+    xblocks = range(0, w, amplitude_)
+    yblocks = range(0, h, amplitude_)
+    glitch = pygame.Surface((w, h), pygame.SRCALPHA)
+    for x in xblocks:
+        xpos = (x + (math.sin(rad1_ + x * 1 / (amplitude_ ** 2)) * amplitude_)) + amplitude_
+        for y in yblocks:
+            ypos = (y + (math.sin(rad1_ + y * 1 / (amplitude_ ** 2)) * amplitude_)) + amplitude_
+            glitch.blit(texture_, (0 + x, 0 + y), (xpos, ypos, amplitude_, amplitude_))
+
+    return glitch.convert_alpha()
+
+
+# Wave algorithm direction y
+def wave_y(texture_, rad1_, amplitude_):
+    w, h = texture_.get_size()
+    yblocks = range(0, h, amplitude_)
+    glitch = pygame.Surface((w, h), pygame.SRCALPHA)
+    vector = pygame.math.Vector2(x=1, y=0)
+    position = pygame.math.Vector2(x=0, y=0)
+    while position.x < w:
+        for y in yblocks:
+            ypos = (y + (math.sin(rad1_ + y * 1 / (amplitude_ ** 2)) * amplitude_)) + amplitude_
+            glitch.blit(texture_, (0 + position.x, 0 + y), (position.x, ypos, 1, amplitude_))
+        position += vector
+
+    return glitch.convert_alpha()
+
+# Wave algorithm direction y
+def wave_x(texture_, rad1_, amplitude_):
+    w, h = texture_.get_size()
+    yblocks = range(0, h, amplitude_)
+    glitch = pygame.Surface((w, h), pygame.SRCALPHA)
+    vector = pygame.math.Vector2(x=1, y=0)
+    position = pygame.math.Vector2(x=0, y=0)
+    while position.x < w:
+        for y in yblocks:
+            ypos = (y + (math.sin(rad1_ + y * 1 / (amplitude_ ** 2)) * amplitude_)) + amplitude_
+            glitch.blit(texture_, (0 + position.x, 0 + y), (position.x, ypos, amplitude_, amplitude_))
+        position += vector
+
+    return glitch.convert_alpha()
+
+
+def fish_eye(image):
+    """ Fish eye algorithm """
+    w, h = image.get_size()
+    w2 = w / 2
+    h2 = h / 2
+    image_copy = pygame.Surface((w, h), flags=pygame.RLEACCEL).convert()
+    for y in range(h):
+        # Normalize every pixels along y axis
+        # when y = 0 --> ny = -1
+        # when y = h --> ny = +1
+        ny = ((2 * y) / h) - 1
+        # ny * ny pre calculated
+        ny2 = ny ** 2
+        for x in range(w):
+            # Normalize every pixels along x axis
+            # when x = 0 --> nx = -1
+            # when x = w --> nx = +1
+            nx = ((2 * x) / w) - 1
+            # pre calculated nx * nx
+            nx2 = nx ** 2
+
+            # calculate distance from center (0, 0)
+            r = math.sqrt(nx2 + ny2)
+
+            # discard pixel if r below 0.0 or above 1.0
+            if 0.0 <= r <= 1.0:
+
+                nr = (r + 1 - math.sqrt(1 - r ** 2)) / 2
+                if nr <= 1.0:
+
+                    theta = math.atan2(ny, nx)
+                    nxn = nr * math.cos(theta)
+                    nyn = nr * math.sin(theta)
+                    x2 = int(nxn * w2 + w2)
+                    y2 = int(nyn * h2 + h2)
+
+                    if 0 <= int(y2 * w + x2) < w * h:
+
+                        pixel = image.get_at((x2, y2))
+                        image_copy.set_at((x, y), pixel)
+
+    return image_copy
+
+
+def rotate_inplace(image: pygame.Surface, angle: int):
+    w, h = image.get_size()
+    w2, h2 = w / 2, h / 2
+    rgb = numpy.zeros((w, h, 3))
+    rgb_ = pygame.surfarray.pixels3d(image)
+    for ix in range(w):
+        nx = ((2 * ix) / w) - 1
+        for iy in range(h):
+            ny = ((2 * iy) / h) - 1
+            radius = math.sqrt(nx ** 2 + ny ** 2)
+            if radius > 1:
+                continue
+            alpha = -math.atan2(ny, nx) + angle * math.pi/180
+            x = min(math.floor(math.cos(alpha) * radius * w2 + w2), w - 1)
+            y = min(math.floor(math.sin(alpha) * radius * h2 + h2), h - 1)
+            pixel = rgb_[ix, h - 1 - iy]
+            rgb[x, y] = pixel
+            # rgb[x - 1, y] = pixel
+
+    return pygame.surfarray.make_surface(rgb)
+
+
+def rotate_(image: pygame.Surface, angle: int):
+    image_copy = image.copy()
+    image_copy.fill((0, 0, 0, 0))
+    width, height = image.get_size()
+    msin = []
+    mcos = []
+    for i in range(360):
+        rad = math.radians(-i)
+        msin.append(math.sin(rad))
+        mcos.append(math.cos(rad))
+    hwidth = width // 2
+    hheight = height // 2
+
+    for x in range(0, width):
+        for y in range(0, height):
+
+            xt = x - hwidth
+            yt = y - hheight
+
+            sinma = msin[angle]
+            cosma = mcos[angle]
+
+            xs = round((cosma * xt - sinma * yt) + hwidth)
+            ys = round((sinma * xt + cosma * yt) + hheight)
+
+            if 0 <= xs < width and 0 <= ys < height:
+                image_copy.set_at((x,y), image.get_at((xs,ys)))
+
+    return image_copy
+
+
+if __name__ == '__main__':
+    ...

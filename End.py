@@ -1,22 +1,10 @@
 # encoding: utf-8
-"""
 
-                   GNU GENERAL PUBLIC LICENSE
-
-                       Version 3, 29 June 2007
-
-
- Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
-
- Everyone is permitted to copy and distribute verbatim copies
-
- of this license document, but changing it is not allowed.
- """
 from copy import deepcopy
 from random import randint
 
-from SpriteSheet import spread_sheet_per_pixel, spread_sheet_fs8
-from surface_cython import hue_surface, wave_x, hge
+from TextureTools import spread_sheet_per_pixel, spread_sheet_fs8
+from TextureTools import hue_surface, wave_x, hge
 
 __author__ = "Yoann Berenguer"
 __copyright__ = "Copyright 2007, Cobra Project"
@@ -29,7 +17,6 @@ __email__ = "yoyoberenguer@hotmail.com"
 import pygame
 from pygame import freetype
 import os
-from Background import Background
 from numpy import linspace, repeat, newaxis, dstack, uint8
 
 
@@ -80,12 +67,12 @@ class PlayerLost(pygame.sprite.Sprite):
     DIALOGBOX_READOUT_RED = None
     SKULL = None
 
-    def __init__(self, gl_, font_, image_, layer_):
+    def __init__(self, gl_, font_, image_, layer_, timing_=15):
 
         self._layer = layer_
         pygame.sprite.Sprite.__init__(self, PlayerLost.containers)
 
-        self.screen = gl_.screen  # pygame.display.get_surface()
+        self.screen = pygame.display.get_surface()
         self.screenrect = self.screen.get_rect()
         self.image = image_
         self.image_copy = image_
@@ -100,6 +87,9 @@ class PlayerLost(pygame.sprite.Sprite):
         self.red_rect2 = self.rect.copy()
         self.red_rect2.inflate_ip(-200, -200)
         self.red_rect_default = self.red_rect1.copy()
+        self.dt = 0
+        self.timing = timing_
+        self.gl = gl_
 
         # Load the buffered image
         if 'PlayerLost' in gl_.buffers:
@@ -126,34 +116,40 @@ class PlayerLost(pygame.sprite.Sprite):
 
     def update(self):
 
-        self.image = self.image_copy.copy()
+        if self.dt > self.timing:
 
-        self.image.blit(PlayerLost.DIALOGBOX_READOUT_RED[self.inc % len(PlayerLost.DIALOGBOX_READOUT_RED) - 1],
-                        (80, 105), special_flags=pygame.BLEND_RGB_ADD)
+            self.image = self.image_copy.copy()
 
-        pygame.draw.rect(pygame.display.get_surface(), self.red, self.red_rect, 2)
-        pygame.draw.rect(self.screen, self.red, self.red_rect1, 2)
-        pygame.draw.rect(self.screen, self.red, self.red_rect2, 2)
+            self.image.blit(PlayerLost.DIALOGBOX_READOUT_RED[self.inc % len(PlayerLost.DIALOGBOX_READOUT_RED) - 1],
+                            (80, 105), special_flags=pygame.BLEND_RGB_ADD)
 
-        if not self.screenrect.contains(self.red_rect):
-            self.red_rect = self.red_rect_default.copy()
+            pygame.draw.rect(self.screen, self.red, self.red_rect, 2)
+            pygame.draw.rect(self.screen, self.red, self.red_rect1, 2)
+            pygame.draw.rect(self.screen, self.red, self.red_rect2, 2)
 
-        if not self.screenrect.contains(self.red_rect1):
-            self.red_rect1 = self.red_rect_default.copy()
+            if not self.screenrect.contains(self.red_rect):
+                self.red_rect = self.red_rect_default.copy()
 
-        if not self.screenrect.contains(self.red_rect2):
-            self.red_rect2 = self.red_rect_default.copy()
+            if not self.screenrect.contains(self.red_rect1):
+                self.red_rect1 = self.red_rect_default.copy()
 
-        self.red_rect.inflate_ip(4, 4)
-        self.red_rect1.inflate_ip(4, 4)
-        self.red_rect2.inflate_ip(4, 4)
+            if not self.screenrect.contains(self.red_rect2):
+                self.red_rect2 = self.red_rect_default.copy()
 
-        self.image.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+            self.red_rect.inflate_ip(4, 4)
+            self.red_rect1.inflate_ip(4, 4)
+            self.red_rect2.inflate_ip(4, 4)
 
-        if randint(0, 1000) > 980:
-            self.image = self.glitch
+            self.image.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
 
-        self.inc += 1
+            if randint(0, 1000) > 950:
+                self.image = self.glitch
+
+            self.inc += 1
+            self.dt = 0
+
+        else:
+            self.dt += self.gl.TIME_PASSED_SECONDS
 
 
 class PlayerWin(pygame.sprite.Sprite):
@@ -248,14 +244,19 @@ if __name__ == '__main__':
     GL.screen = SCREEN
     pygame.init()
     clock = pygame.time.Clock()
-    BACKGROUND = pygame.image.load('Assets\\Graphics\\Background\\A2.png').convert()
+    BACKGROUND = pygame.image.load('Assets\\background.jpg').convert()
+    BACKGROUND = pygame.transform.smoothscale(BACKGROUND, (SCREENRECT.w, SCREENRECT.h))
 
-    SKULL = pygame.image.load('Assets\\Graphics\\Skull\\toxigineSkull_.png').convert()
+    SKULL = pygame.image.load('Assets\\toxigineSkull_.png').convert()
+    SKULL = pygame.transform.smoothscale(
+        SKULL, (int(SKULL.get_width() * .8), int(SKULL.get_height() * .8)))
     SKULL.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
-    FINAL_MISSION = pygame.image.load('Assets\\Graphics\\GUI\\Device\\container.png').convert()
+    FINAL_MISSION = pygame.image.load('Assets\\container.png').convert()
+    FINAL_MISSION = pygame.transform.smoothscale(
+        FINAL_MISSION, (int(FINAL_MISSION.get_width() * .8), int(FINAL_MISSION.get_height() * .8)))
     FINAL_MISSION.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
 
-    DIALOGBOX_READOUT = spread_sheet_fs8('Assets\\Graphics\\GUI\\Device\\Readout_512x512_6x6_.png', 512, 6, 6)
+    DIALOGBOX_READOUT = spread_sheet_fs8('Assets\\Readout_512x512_6x6_.png', 512, 6, 6)
     i = 0
     for surface in DIALOGBOX_READOUT:
         # surface.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
@@ -263,7 +264,7 @@ if __name__ == '__main__':
             surface, (FINAL_MISSION.get_width() - 150, FINAL_MISSION.get_height() - 150))
         DIALOGBOX_READOUT[i] = pygame.transform.flip(DIALOGBOX_READOUT[i], True, True)
         i += 1
-    DIALOGBOX_READOUT_RED = spread_sheet_fs8('Assets\\Graphics\\GUI\\Device\\Readout_512x512_6x6_red_.png', 512, 6, 6)
+    DIALOGBOX_READOUT_RED = spread_sheet_fs8('Assets\\Readout_512x512_6x6_red_.png', 512, 6, 6)
     i = 0
     for surface in DIALOGBOX_READOUT_RED:
         # surface.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)

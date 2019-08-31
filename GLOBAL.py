@@ -44,8 +44,12 @@ class GL(object):
 
     P1 = pygame.sprite.GroupSingle()        # Player 1 instance
     P2 = pygame.sprite.GroupSingle()        # Player 2 instance
+    P1_SCORE = None                         # Player 1 score instance
+    P2_SCORE = None                         # Player 2 score instance
 
-    CLIENTS = {}
+    CLIENTS = {}                            # contains all the client connected to the server
+
+    buffers = {}                            # buffer containing images already processed. 
 
     def __init__(self):
         ...
