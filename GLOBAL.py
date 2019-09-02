@@ -51,6 +51,8 @@ class GL(object):
 
     buffers = {}                            # buffer containing images already processed. 
 
+    ACCELERATION = 1                        # Acceleration to apply
+
     def __init__(self):
         ...
 

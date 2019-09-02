@@ -24,6 +24,7 @@ try:
     from Sounds import EXPLOSION_SOUND, IMPACT1, IMPACT
     from CreateHalo import AsteroidHalo
     from GLOBAL import GL
+    from Gems import MakeGems
 except ImportError:
     print("\nOne or more game libraries is missing on your system."
           "\nDownload the source code from:\n"
@@ -232,12 +233,38 @@ class Asteroid(pygame.sprite.Sprite):
                 rotation_=self.rotation, scale_=self.scale, damage_=self.damage,
                 life_=self.life, points_=self.points)
 
+    def create_gems(self, player_) -> None:
+        """
+        Create collectable gems after asteroid disintegration.
+        :param player_: player causing asteroid explosion
+        :return: None
+        """
+        if player_ is None:
+            raise ValueError("Argument player_ cannot be none!.")
+        if hasattr(player_, 'alive'):
+            if player_.alive():
+                for _ in range(randint(3, 15)):
+                    MakeGems(gl_=self.gl,
+                             player_=player_,
+                             object_=self,
+                             ratio_=1.0,
+                             timing_=15,
+                             offset_=pygame.Rect(
+                                 self.rect.centerx, self.rect.centery, randint(-100, 100), randint(-100, 20)))
+
     def make_debris(self) -> None:
         """
         Create sprite debris (different sizes 32x32, 64x64 pixels)
-
         :return:None
         """
+
+        if not globals().__contains__('MULT_ASTEROID_64'):
+            raise NameError("Texture MULT_ASTEROID_64 is missing!"
+                            "\nCheck file Texture.py for MULT_ASTEROID_64 assigment. ")
+
+        if not globals().__contains__('MULT_ASTEROID_32'):
+            raise NameError("Texture MULT_ASTEROID_32 is missing!"
+                            "\nCheck file Texture.py for MULT_ASTEROID_32 assigment. ")
 
         size_x, size_y = self.image.get_size()
         if size_x > 128:
@@ -248,7 +275,7 @@ class Asteroid(pygame.sprite.Sprite):
             name = 'MULT_ASTEROID_32'
 
         length = len(aster) - 1
-        for r in range(8 if size_x > 255 else 6):
+        for _ in range(8 if size_x > 255 else 6):
             Debris.containers = self.gl.All
             element = randint(0, length)
             Debris.image = aster[element]
@@ -256,26 +283,41 @@ class Asteroid(pygame.sprite.Sprite):
                    pos_=self.rect.center, gl_=self.gl,
                    blend_=0, timing_=16, layer_=-2)
 
-    def explode(self) -> None:
+    def explode(self, player_) -> None:
         """
         Create an explosion sprite when asteroid life points < 1
-
+        :param player_: Player causing asteroid explosion
         :return: None
         """
+
         if self.alive():
+
+            if not globals().__contains__('EXPLOSION1'):
+                raise NameError("Texture EXPLOSION1 is missing!"
+                                "\nCheck file Texture.py for EXPLOSION1 assigment. ")
             # Create queue sprite
             Explosion.images = EXPLOSION1
             Explosion(self, self.rect.center,
                       self.gl, self.timing, 0, texture_name_='EXPLOSION1')  # self.layer)
 
+            if not globals().__contains__('HALO_SPRITE12'):
+                raise NameError("Texture HALO_SPRITE12 is missing!"
+                                "\nCheck file Texture.py for HALO_SPRITE12 assigment. ")
+
+            if not globals().__contains__('HALO_SPRITE14'):
+                raise NameError("Texture HALO_SPRITE14 is missing!"
+                                "\nCheck file Texture.py for HALO_SPRITE14 assigment. ")
+
             # Create Halo sprite
             AsteroidHalo.images = choice([HALO_SPRITE12, HALO_SPRITE14])
             AsteroidHalo.containers = self.gl.All
             AsteroidHalo(texture_name_='HALO_SPRITE12'
-                         if AsteroidHalo.images == HALO_SPRITE12 else 'HALO_SPRITE14',
+                         if AsteroidHalo.images is HALO_SPRITE12 else 'HALO_SPRITE14',
                          object_=self, timing_=10)
 
             self.make_debris()
+            if player_ is not None:
+                self.create_gems(player_)
             self.kill()
 
     def hit(self, player_=None, damage_: int = 0) -> None:
@@ -297,7 +339,7 @@ class Asteroid(pygame.sprite.Sprite):
         if self.life < 1:
             if player_ is not None:
                 player_.update_score(self.points)
-            self.explode()
+            self.explode(player_)
 
     def collide(self, player_=None,  damage_: int = 0) -> None:
         """
@@ -312,6 +354,9 @@ class Asteroid(pygame.sprite.Sprite):
         if damage_ < 0:
             raise ValueError('positional argument damage_ cannot be < 0')
 
+        if not globals().__contains__('IMPACT1'):
+            raise NameError("Sound IMPACT1 is missing!"
+                            "\nCheck file Sounds.py for IMPACT1 assigment. ")
         self.life -= damage_
         # play the impact sound locally
         self.gl.MIXER.play(sound_=IMPACT1, loop_=False, priority_=0,
@@ -341,6 +386,8 @@ class Asteroid(pygame.sprite.Sprite):
 
             # self.image = self.images_copy.copy()
             if self.has_been_hit:
+                if not globals().__contains__('LAVA'):
+                    raise NameError("")
                 self.image.blit(LAVA[self.index % len(LAVA) - 1],
                                 (0, 0), special_flags=pygame.BLEND_RGB_ADD)
                 self.index += 1

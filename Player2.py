@@ -1,29 +1,51 @@
 # encoding: utf-8
 
-
-import pygame
 import socket
 import _pickle as cpickle
 import threading
-import lz4.frame
 import time
 import copyreg
-from SoundServer import SoundControl
-import random
-from random import uniform
-from TextureTools import *
-from NetworkBroadcast import Broadcast, StaticSprite, SoundAttr, EventAttr, BlendSprite
-from Explosions import Explosion
-from MessageSender import SpriteClient
-from GLOBAL import GL
-from LayerModifiedClass import LayeredUpdatesModified
-from AfterBurners import AfterBurner
-from CreateHalo import PlayerHalo, AsteroidHalo
-from Player1 import LaserImpact
-from End import PlayerLost
-from pygame import freetype
-from PlayerScore import DisplayScore
 
+from LifeBar import HorizontalBar
+
+try:
+    import pygame
+except ImportError:
+    print("\n<Pygame> library is missing on your system."
+          "\nTry: \n   C:\\pip install pygame on a window command prompt.")
+    raise SystemExit
+
+try:
+    import lz4.frame
+except ImportError:
+    print("\n<lz4> library is missing on your system."
+          "\nTry: \n   C:\\pip install lz4 on a window command prompt.")
+    raise SystemExit
+
+try:
+
+    from Gems import MakeGems
+    from SoundServer import SoundControl
+    from random import uniform
+    from TextureTools import *
+    from NetworkBroadcast import Broadcast, StaticSprite, SoundAttr, EventAttr, BlendSprite
+    from Explosions import Explosion
+    from MessageSender import SpriteClient
+    from GLOBAL import GL
+    from LayerModifiedClass import LayeredUpdatesModified
+    from AfterBurners import AfterBurner
+    from CreateHalo import PlayerHalo, AsteroidHalo
+    from Player1 import LaserImpact
+    from End import PlayerLost
+    from pygame import freetype
+    from PlayerScore import DisplayScore
+    from CosmicDust import COSMIC_DUST_ARRAY, create_dust, display_dust
+
+except ImportError:
+    print("\nOne or more game libraries is missing on your system."
+          "\nDownload the source code from:\n"
+          "https://github.com/yoyoberenguer/MultiplayerGameEngine.git")
+    raise SystemExit
 
 __author__ = "Yoann Berenguer"
 __credits__ = ["Yoann Berenguer"]
@@ -101,7 +123,7 @@ class Shot(pygame.sprite.Sprite):
         return shot_obj
 
     @staticmethod
-    def is_reloading():
+    def is_reloading() -> bool:
         if FRAME - Shot.last_shot < 10:
             return True
         else:
@@ -160,6 +182,7 @@ class Player2(pygame.sprite.Sprite):
         self.blend = 0
         self.previous_pos = pygame.math.Vector2()  # previous position
         self.life = 200
+        self.max_life = 200
         self.eng_right = self.right_engine()
         self.eng_left = self.left_engine()
         # todo test if convert_alpha otherwise this is useless
@@ -174,21 +197,21 @@ class Player2(pygame.sprite.Sprite):
     def make_sound_object(self, sound_name_: str) -> SoundAttr:
         return SoundAttr(frame_=self.gl.FRAME, id_=self.id_, sound_name_=sound_name_, rect_=self.rect)
     
-    def make_object(self):
+    def make_object(self) -> StaticSprite:
         # Only attributes self.gl.FRAME, self.rect are changing over the time.
         return StaticSprite(
                 frame_=self.gl.FRAME, id_=self.id_, surface_=self.surface_name,
                 layer_=self.layer, blend_=self.blend, rect_=self.rect, life=self.life,
                 damage=self.damage)
 
-    def player_lost(self):
+    def player_lost(self) -> None:
         PlayerLost.containers = self.gl.All
         PlayerLost.DIALOGBOX_READOUT_RED = DIALOGBOX_READOUT_RED
         PlayerLost.SKULL = SKULL
         font = freetype.Font('Assets\\Fonts\\Gtek Technology.ttf', size=14)
         PlayerLost(gl_=self.gl, font_=font, image_=FINAL_MISSION, layer_=0)
 
-    def explode(self):
+    def explode(self) -> None:
 
         if self.alive():
             Explosion.images = EXPLOSION2
@@ -201,7 +224,7 @@ class Player2(pygame.sprite.Sprite):
             self.player_lost()
             self.kill()
 
-    def collide(self, damage_):
+    def collide(self, damage_) -> None:
         print(self.life, damage_, self.life - damage_)
         if self.alive():
             self.life -= damage_
@@ -226,23 +249,25 @@ class Player2(pygame.sprite.Sprite):
         return AfterBurner(self, self.gl, (5, 38),
                            self.timing, pygame.BLEND_RGB_ADD, self.layer - 1, texture_name_='EXHAUST')
 
-    def get_centre(self):
+    def get_centre(self) -> tuple:
         return self.rect.center
 
     def disruption(self) -> None:
         index = (FRAME >> 1) % len(DISRUPTION) - 1
-        # Broadcast(self.gl.FRAME, self, 'DISRUPTION').animation(
-        #    index, (self.rect.topleft[0], self.rect.topleft[1]),
-        #    pygame.BLEND_RGB_ADD, parent_='P2_SURFACE', blend_pos_=(-20, -20))
         self.image.blit(DISRUPTION[index], (-20, -20), special_flags=pygame.BLEND_RGB_ADD)
 
     def shooting_effect(self) -> pygame.Surface:
-        self.image.blit(GRID, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
-        # Broadcast(self.gl.FRAME, self, 'GRID').singleton(self.rect.topleft,
-        #                                  pygame.BLEND_RGB_ADD, parent_='P2_SURFACE', blend_pos_=(0, 0))
+        """
+        Apply a special effect on the aircraft hull when firing.
+        :return: pygame.Surface
+        """
+        if 'GRID' in globals():
+            self.image.blit(GRID, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+        else:
+            raise NameError('GRID is not defined.')
         return self.image
 
-    def update(self):
+    def update(self) -> None:
 
         self.rect.clamp_ip(SCREENRECT)
 
@@ -322,12 +347,42 @@ class MirroredAsteroidClass(pygame.sprite.Sprite):
 
         self.index = 0
 
-    def blend_(self):
+    def blend_(self) -> None:
+        if not globals().__contains__('LAVA'):
+            raise NameError('Texture LAVA is missing!'
+                            '\nCheck file Texture.py for LAVA assigment. ')
         self.image.blit(LAVA[self.index % len(LAVA) - 1],
                         (0, 0), special_flags=pygame.BLEND_RGB_ADD)
         self.index += 1
 
-    def make_debris(self):
+    def create_gems(self, player_) -> None:
+        """
+        Create collectable gems after asteroid disintegration.
+        :param player_: player causing asteroid explosion
+        :return: None
+        """
+        if player_ is None:
+            raise ValueError("Argument player_ cannot be none!.")
+        if hasattr(player_, 'alive'):
+            if player_.alive():
+                for _ in range(randint(3, 15)):
+                    MakeGems(gl_=self.gl,
+                             player_=player_,
+                             object_=self,
+                             ratio_=1.0,
+                             timing_=15,
+                             offset_=pygame.Rect(
+                                 self.rect.centerx, self.rect.centery, randint(-100, 100), randint(-100, 20)))
+
+    def make_debris(self) -> None:
+        if not globals().__contains__('MULT_ASTEROID_64'):
+            raise NameError("Texture MULT_ASTEROID_64 is missing!"
+                            "\nCheck file Texture.py for MULT_ASTEROID_64 assigment. ")
+
+        if not globals().__contains__('MULT_ASTEROID_32'):
+            raise NameError("Texture MULT_ASTEROID_32 is missing!"
+                            "\nCheck file Texture.py for MULT_ASTEROID_32 assigment. ")
+
         size_x, size_y = self.image.get_size()
         if size_x > 128:
             aster = MULT_ASTEROID_64
@@ -345,41 +400,28 @@ class MirroredAsteroidClass(pygame.sprite.Sprite):
                    pos_=self.rect.center, gl_=self.gl,
                    blend_=0, timing_=16, layer_=-2)
 
-    def explode(self):
+    def explode(self) -> None:
         # This is done on the server side
-        """
-        Explosion.images = EXPLOSION2
-        Explosion(self, self.rect.center,
-                  self.gl, 16, self.layer, texture_name_='EXPLOSION1')
-        # Create Halo sprite
-        AsteroidHalo.images = random.choice([HALO_SPRITE12, HALO_SPRITE14])
-        AsteroidHalo.containers = self.gl.All
-        AsteroidHalo(texture_name_='HALO_SPRITE12'
-                     if AsteroidHalo.images == HALO_SPRITE12 else 'HALO_SPRITE14',
-                     object_=self, timing_=10)
+        ...
 
-        self.gl.MIXER.play(sound_=EXPLOSION_SOUND, loop_=False, priority_=0,
-                           volume_=1.0, fade_out_ms=0, panning_=True,
-                           name_='EXPLOSION_SOUND', x_=self.rect.centerx,
-                           object_id_=id(EXPLOSION_SOUND),
-                           screenrect_=self.gl.SCREENRECT)
-        self.kill()
-        """
-
-    def hit(self, player_=None, damage_: int = 0):
+    def hit(self, player_=None, damage_: int = 0) -> None:
 
         self.life -= damage_
 
         if self.life < 1:
             if player_ is not None:
                 player_.update_score(self.points)
+                self.create_gems(player_)
             self.make_debris()
             self.explode()
         else:
             self.blend_()
 
-    def collide(self, player_=None, damage_: int = 0):
+    def collide(self, player_=None, damage_: int = 0) -> None:
 
+        if not globals().__contains__('IMPACT1'):
+            raise NameError("Sound IMPACT1 is missing!"
+                            "\nCheck file Sounds.py for IMPACT1 assigment. ")
         self.life -= damage_
         # Play the sound locally only, the server is doing the same
         self.gl.MIXER.play(sound_=IMPACT1, loop_=False, priority_=0,
@@ -395,7 +437,7 @@ class MirroredAsteroidClass(pygame.sprite.Sprite):
             self.kill()
         ...
 
-    def update(self):
+    def update(self) -> None:
         ...
 
 
@@ -415,11 +457,20 @@ class MirroredPlayer1Class(pygame.sprite.Sprite):
         self.damage = sprite_.damage
         self.gl = GL
 
-    def disruption(self):
+    def disruption(self) -> None:
+
+        if FRAME is None:
+            raise ValueError("FRAME cannot be None!")
+
+        if DISRUPTION is None:
+            raise ValueError("Texture DISRUPTION is missing!")
+
         index = (FRAME >> 1) % len(DISRUPTION) - 1
         self.image.blit(DISRUPTION[index], (0, 0), special_flags=pygame.BLEND_RGB_ADD)
 
-    def update(self):
+    def update(self) -> None:
+        if self.image is None:
+            raise ValueError('Cannot copy() NoneType.')
         self.image = self.image_copy.copy()
         self.disruption()
         ...
@@ -498,7 +549,7 @@ class MirroredTransportClass(pygame.sprite.Sprite):
         sprite_.update = self.display_fire_particle_fx
         self.vertex_array.append(sprite_)
 
-    def update(self):
+    def update(self) -> None:
 
         self.image = self.image_copy.copy()
 
@@ -735,7 +786,8 @@ class SpriteServer(threading.Thread):
                             # frames, and should be considered as read only variable on the client side.
                             if sprite_.surface in ('DEIMOS', 'EPIMET'):
                                 if sprite_.life > 0:
-                                    # todo create a new_method for class MirroredAsteroidClass with id inventory
+                                    # todo create a __new___ method for class MirroredAsteroidClass and a python
+                                    #  inventory list to monitor every instances.
                                     s = MirroredAsteroidClass(sprite_)
                                     self.gl.ASTEROID.add(s)
                                 else:
@@ -884,7 +936,7 @@ def collision_detection():
 
                 if collision is not None:
                     if hasattr(collision, 'collide'):
-                        collision.collide(transport.damage)
+                        collision.collide(None, transport.damage)
                     else:
                         print(type(collision))
                         raise AttributeError
@@ -908,7 +960,7 @@ def collision_detection():
                 if asteroids is not None:
                     for aster in asteroids:
                         if hasattr(aster, 'hit'):
-                            aster.hit(100)  # -> check if asteroid explode otherwise blend the asteroid
+                            aster.hit(None, 100)  # -> check if asteroid explode otherwise blend the asteroid
 
     # Use collision mask for collision detection
     # Check collision between Player 2 and asteroids
@@ -977,8 +1029,7 @@ if __name__ == '__main__':
     # client.join()
 
     # Killing threads if no client connected
-    if not client.is_alive() or GL.CONNECTION is False:  
-        # todo write : to start the server first etc
+    if not client.is_alive() or GL.CONNECTION is False:
         print('Server is not running...')
         GL.SPRITE_CLIENT_STOP = True
         GL.SPRITE_SERVER_STOP = True
@@ -1003,8 +1054,25 @@ if __name__ == '__main__':
     DisplayScore.images = pygame.Surface((10, 10))
     GL.P2_SCORE = DisplayScore(gl_=GL, timing_=15)
 
+    MakeGems.containers = GL.All
+
     P2 = Player2(GL, 15, (screen.get_size()[0] // 2, screen.get_size()[1] // 2))
-    # P2 = None
+
+    life_bar = HorizontalBar(start_color=pygame.Color(0, 7, 255, 0),
+                             end_color=pygame.Color(120, 255, 255, 0),
+                             max_=P2.max_life, min_=0,
+                             value_=P2.life,
+                             start_color_vector=(0, 1, 0), end_color_vector=(0, 0, 0), alpha=False, height=32, xx=200,
+                             scan=True)
+
+    transport_life_bar = HorizontalBar(start_color=pygame.Color(255, 7, 15, 0),
+                                       end_color=pygame.Color(12, 12, 255, 0),
+                                       max_=5000, min_=0,
+                                       value_=5000,
+                                       start_color_vector=(0, 1, 0), end_color_vector=(0, 0, 0), alpha=False, height=32,
+                                       xx=200,
+                                       scan=True)
+
     GL.TIME_PASSED_SECONDS = 0
 
     clock = pygame.time.Clock()
@@ -1068,6 +1136,11 @@ if __name__ == '__main__':
         GL.NEXT_FRAME.clear()
         GL.SIGNAL.clear()
 
+        # Create cosmic dust
+        if GL.FRAME % 10 == 0:
+            if len(COSMIC_DUST_ARRAY) < 15:
+                create_dust(GL)
+
         if joystick is not None:
             JL3 = pygame.math.Vector2(joystick.get_axis(0), joystick.get_axis(1))
 
@@ -1108,6 +1181,29 @@ if __name__ == '__main__':
         GL.TIME_PASSED_SECONDS = clock.tick(70)
         GL.SPEED_FACTOR = GL.TIME_PASSED_SECONDS / 1000
         GL.FPS.append(clock.get_fps())
+
+        # dust particles (show on the top of all other sprites)
+        if len(COSMIC_DUST_ARRAY) > 0:
+            display_dust(GL)
+
+        if P2.life > 1:
+            life_bar.VALUE = int(P2.life)
+            life = life_bar.display_gradient()
+            screen.blit(life, (10, 10), special_flags=0)
+            screen.blit(life_bar.display_value(), (50, 10))
+
+        if GL.TRANSPORT is not None and \
+                isinstance(GL.TRANSPORT, pygame.sprite.GroupSingle):
+            if len(GL.TRANSPORT) > 0:
+                transport = GL.TRANSPORT.sprites()[0]
+
+                if transport.alive():
+                    if transport.life > 1:
+                        transport_life_bar.VALUE = int(transport.life)
+                        life = transport_life_bar.display_gradient()
+                        screen.blit(life, (SCREENRECT.w // 2 + 100, 10), special_flags=0)
+                        screen.blit(transport_life_bar.display_value(), (SCREENRECT.w // 2 + 150, 10))
+
         pygame.display.flip()
 
         FRAME += 1

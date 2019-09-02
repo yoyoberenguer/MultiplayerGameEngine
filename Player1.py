@@ -46,6 +46,9 @@ try:
     from AfterBurners import AfterBurner
     from End import PlayerLost
     from PlayerScore import DisplayScore
+    from CosmicDust import COSMIC_DUST_ARRAY, create_dust, display_dust
+    from Gems import MakeGems
+    from LifeBar import HorizontalBar
 
 except ImportError:
     print("\nOne or more game libraries is missing on your system."
@@ -474,6 +477,7 @@ class Player1(pygame.sprite.Sprite):
         self.shooting = False
         self.previous_pos = pygame.math.Vector2()           # previous position
         self.life = 200                                     # player's life
+        self.max_life = 200                                 # maximum life
         self.eng_right = self.right_engine()                # instance for right engine
         self.eng_left = self.left_engine()                  # isntance for left engine
         # todo test if convert_alpha otherwise this is useless
@@ -737,11 +741,14 @@ class MirroredPlayer2Class(pygame.sprite.Sprite):
         self.damage = sprite_.damage
         self.gl = GL
 
-    def disruption(self):
-        index = (FRAME >> 1) % len(DISRUPTION) - 1
-        self.image.blit(DISRUPTION[index], (-20, -20), special_flags=pygame.BLEND_RGB_ADD)
+    def disruption(self) -> None:
+        if globals().__contains__('FRAME') and globals().__contains__('DISRUPTION'):
+            index = (FRAME >> 1) % len(DISRUPTION) - 1
+            self.image.blit(DISRUPTION[index], (-20, -20), special_flags=pygame.BLEND_RGB_ADD)
 
     def update(self) -> None:
+        if self.image is None:
+            raise ValueError('Cannot copy() NoneType.')
         self.image = self.image_copy.copy()
         self.disruption()
 
@@ -782,7 +789,6 @@ class P2Shot(pygame.sprite.Sprite):
         self.timing = timing_
 
     def collide(self, rect_, object_) -> None:
-        # todo check here if it should be hit class instead
         """
 
         :param rect_: pygame.Rect type
@@ -883,7 +889,8 @@ class SpriteServer(threading.Thread):
                     print("\n[-]SpriteServer - Lost connection with Player 2 ...")
                     print("\n[-]SpriteServer - ERROR %s %s" % (error, time.ctime()))
                     # signal to kill both threads SpriteServer and SpriteClient
-                    # todo need to remove player 2 sprite
+                    # todo : Player 2 is now deconnected from the server and should not be
+                    #  display on the server display, create a method to kill the sprite of Player 2
                     self.gl.SPRITE_SERVER_STOP = True
                     nbytes = 0
 
@@ -893,7 +900,8 @@ class SpriteServer(threading.Thread):
                 except ConnectionResetError as error:
                     print("\n[-]SpriteServer - Lost connection with Player 2 ...")
                     print("\n[-]SpriteServer - ERROR %s %s" % (error, time.ctime()))
-                    # todo need to remove player 2 sprite
+                    # todo : Player 2 is now deconnected from the server and should not be
+                    #  display on the server display, create a method to kill the sprite of Player 2
                     # signal to kill both threads SpriteServer and SpriteClient
                     self.gl.SPRITE_SERVER_STOP = True
                 try:
@@ -903,7 +911,8 @@ class SpriteServer(threading.Thread):
                 except Exception:
                     # The decompression error can also happen when
                     # the bytes stream sent is larger than the buffer size.
-                    # todo need to remove player 2 sprite
+                    # todo : Player 2 is now deconnected from the server and should not be
+                    #  display on the server display, create a method to kill the sprite of Player 2
                     # signal to kill both threads SpriteServer and SpriteClient
                     self.gl.SPRITE_SERVER_STOP = True
                     self.gl.SPRITE_CLIENT_STOP = True
@@ -1090,7 +1099,7 @@ def force_quit(host_: str, port_: int) -> None:
         "Positional argument <host_> is type %s , expecting string." % type(host_)
     assert isinstance(port_, int), \
         "Positional argument <port_> is type %s , expecting integer." % type(port_)
-    # todo port should be > 1024
+    # todo create assert ( port should be > 1024)
     sock = None
     try:
 
@@ -1385,11 +1394,27 @@ if __name__ == '__main__':
     DisplayScore.images = pygame.Surface((10, 10))
     GL.P1_SCORE = DisplayScore(gl_=GL, timing_=15)
 
+    MakeGems.containers = GL.All
+
     P1 = Player1(GL, 15, (screen.get_size()[0] // 2, screen.get_size()[1] // 2))
     # P1 = None
     T1 = Transport(gl_=GL, timing_=15,
                    pos_=(SCREENRECT.w >> 1,
                          (SCREENRECT.h >> 1) - 100), surface_name_='TRANSPORT', layer_=0)
+
+    life_bar = HorizontalBar(start_color=pygame.Color(0, 7, 255, 0),
+                             end_color=pygame.Color(120, 255, 255, 0),
+                             max_=P1.max_life, min_=0,
+                             value_=P1.life,
+                             start_color_vector=(0, 1, 0), end_color_vector=(0, 0, 0), alpha=False, height=32, xx=200,
+                             scan=True)
+    transport_life_bar = HorizontalBar(start_color=pygame.Color(255, 7, 15, 0),
+                                       end_color=pygame.Color(12, 12, 255, 0),
+                                       max_=T1.max_life, min_=0,
+                                       value_=T1.life,
+                                       start_color_vector=(0, 1, 0), end_color_vector=(0, 0, 0), alpha=False, height=32,
+                                       xx=200,
+                                       scan=True)
 
     GL.TIME_PASSED_SECONDS = 0
 
@@ -1413,6 +1438,11 @@ if __name__ == '__main__':
         GL.NEXT_FRAME.set()     # set the event
         event_obj = EventAttr(event_=GL.NEXT_FRAME, frame_=GL.FRAME)
         Broadcast(event_obj).next_frame()
+
+        # Create cosmic dust
+        if GL.FRAME % 10 == 0:
+            if len(COSMIC_DUST_ARRAY) < 15:
+                create_dust(GL)
 
         if len(GL.ASTEROID) < 15:
             asteroid = random.choices(['DEIMOS', 'EPIMET'])[0]
@@ -1502,6 +1532,22 @@ if __name__ == '__main__':
         # half = SCREENRECT.w >> 1
         # safe_zone = pygame.Rect(half - 200, half, 400, SCREENRECT.bottom - half)
         # pygame.draw.rect(screen, pygame.Color(255, 0, 0, 0), safe_zone, 1)
+
+        # dust particles (show on the top of all other sprites)
+        if len(COSMIC_DUST_ARRAY) > 0:
+            display_dust(GL)
+
+        if P1.life > 1:
+            life_bar.VALUE = int(P1.life)
+            life = life_bar.display_gradient()
+            screen.blit(life, (10, 10), special_flags=0)
+            screen.blit(life_bar.display_value(), (50, 10))
+
+        if T1.life > 1:
+            transport_life_bar.VALUE = int(T1.life)
+            life = transport_life_bar.display_gradient()
+            screen.blit(life, (SCREENRECT.w // 2 + 100, 10), special_flags=0)
+            screen.blit(transport_life_bar.display_value(), (SCREENRECT.w // 2 + 150, 10))
 
         pygame.display.flip()
 

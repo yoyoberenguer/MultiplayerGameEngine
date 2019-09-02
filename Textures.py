@@ -3,6 +3,8 @@ import pygame
 from random import randint
 from TextureTools import *
 
+pygame.init()
+pygame.display.set_mode((800, 1024))
 
 __author__ = "Yoann Berenguer"
 __credits__ = ["Yoann Berenguer"]
@@ -223,6 +225,29 @@ for surface in DIALOGBOX_READOUT_RED:
     DIALOGBOX_READOUT_RED[i] = pygame.transform.flip(DIALOGBOX_READOUT_RED[i], True, True)
     i += 1
 
+x = 15
+y = 15
+# Size change according to value
+GEM_SPRITES = []
+for i in range(1, 21):
 
+    GEM_SPRITES.append(
+        pygame.transform.smoothscale(
+            pygame.image.load('Assets\\Gems\\Gem' + str(i) + '.png').convert_alpha(), (x, y)))
+    if i % 2:
+        x += 1
+        y += 1
+del (x, y)
 
+# NOT USE YET
+# GEM_ASSIMILATION = spread_sheet_per_pixel('Assets\\GemAssimilation_128x128_9x2.png', 128, 2, 9)
 
+COSMIC_DUST1 = pygame.image.load('Assets\\stars_.png')
+COSMIC_DUST1.convert(32, pygame.RLEACCEL)
+COSMIC_DUST1 = pygame.transform.smoothscale(COSMIC_DUST1, (2, 5))
+COSMIC_DUST1.set_alpha(255)
+
+COSMIC_DUST2 = pygame.image.load('Assets\\fx_.png')
+COSMIC_DUST2.convert(32, pygame.RLEACCEL)
+COSMIC_DUST2 = pygame.transform.smoothscale(COSMIC_DUST2, (4, 10))
+COSMIC_DUST2.set_alpha(255)

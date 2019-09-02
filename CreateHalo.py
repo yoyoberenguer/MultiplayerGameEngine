@@ -1,6 +1,7 @@
 
 import pygame
 from NetworkBroadcast import Broadcast, AnimatedSprite
+from Textures import HALO_SPRITE12, HALO_SPRITE14, HALO_SPRITE13
 
 __author__ = "Yoann Berenguer"
 __credits__ = ["Yoann Berenguer"]
@@ -40,7 +41,7 @@ class PlayerHalo(pygame.sprite.Sprite):
         self.timing = timing_
         self.texture_name = texture_name_
         self.id_ = id(self)
-        self.playerhalo_object = Broadcast(self.make_object())
+        self.player_halo_object = Broadcast(self.make_object())
 
     def make_object(self) -> AnimatedSprite:
         return AnimatedSprite(frame_=self.gl.FRAME, id_=self.id_, surface_=self.texture_name,
@@ -65,8 +66,8 @@ class PlayerHalo(pygame.sprite.Sprite):
                 self.kill()
 
         if self.rect.colliderect(self.gl.SCREENRECT):
-            self.playerhalo_object.update({'frame': self.gl.FRAME, 'rect': self.rect, 'index': self.index})
-            self.playerhalo_object.queue()
+            self.player_halo_object.update({'frame': self.gl.FRAME, 'rect': self.rect, 'index': self.index})
+            self.player_halo_object.queue()
 
         self.dt += self.gl.TIME_PASSED_SECONDS
 
@@ -93,6 +94,9 @@ class AsteroidHalo(pygame.sprite.Sprite):
         self.images_copy = self.images.copy()
         self.image = self.images_copy[0]
 
+        if not id(AsteroidHalo.images) == id(eval(texture_name_)):
+            raise ValueError("Asteroid image does not match with its surface name.")
+
         self.rect = self.image.get_rect(center=object_.rect.center)
         self.dt = 0
         self.index = 0
@@ -109,7 +113,7 @@ class AsteroidHalo(pygame.sprite.Sprite):
                               layer_=self.layer, blend_=self.blend, rect_=self.rect,
                               index_=self.index)
 
-    def update(self):
+    def update(self) -> None:
 
         if self.dt > self.timing:
 
@@ -125,8 +129,10 @@ class AsteroidHalo(pygame.sprite.Sprite):
 
             else:
                 self.kill()
+
         if self.rect.colliderect(self.gl.SCREENRECT):
             self.asteroidHalo_object.update(
                 {'frame': self.gl.FRAME, 'rect': self.rect, 'index': self.index})
             self.asteroidHalo_object.queue()
+
         self.dt += self.gl.TIME_PASSED_SECONDS
