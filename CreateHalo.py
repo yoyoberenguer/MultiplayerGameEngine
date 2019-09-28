@@ -1,6 +1,6 @@
 
 import pygame
-from NetworkBroadcast import Broadcast, AnimatedSprite
+from NetworkBroadcast import Broadcast, AnimatedSprite, DeleteSpriteCommand
 from Textures import HALO_SPRITE12, HALO_SPRITE14, HALO_SPRITE13
 
 __author__ = "Yoann Berenguer"
@@ -59,17 +59,19 @@ class PlayerHalo(pygame.sprite.Sprite):
                 self.index += 1
                 if self.index > self.length:
                     self.kill()
+                    return
 
                 self.dt = 0
+                self.player_halo_object.update({'frame': self.gl.FRAME,
+                                                'rect': self.rect, 'index': self.index})
 
             else:
                 self.kill()
+                return
+        else:
+            self.dt += self.gl.TIME_PASSED_SECONDS
 
-        if self.rect.colliderect(self.gl.SCREENRECT):
-            self.player_halo_object.update({'frame': self.gl.FRAME, 'rect': self.rect, 'index': self.index})
-            self.player_halo_object.queue()
-
-        self.dt += self.gl.TIME_PASSED_SECONDS
+        self.player_halo_object.queue()
 
 
 class AsteroidHalo(pygame.sprite.Sprite):
@@ -108,10 +110,26 @@ class AsteroidHalo(pygame.sprite.Sprite):
         self.id_ = id(self)
         self.asteroidHalo_object = Broadcast(self.make_object())
 
+        Broadcast.add_object_id(self.id_)
+
+    def delete_object(self) -> DeleteSpriteCommand:
+        """
+        Send a command to kill an object on client side.
+
+        :return: DetectCollisionSprite object
+        """
+        return DeleteSpriteCommand(frame_=self.gl.FRAME, to_delete_={self.id_: self.texture_name})
+
     def make_object(self) -> AnimatedSprite:
         return AnimatedSprite(frame_=self.gl.FRAME, id_=self.id_, surface_=self.texture_name,
                               layer_=self.layer, blend_=self.blend, rect_=self.rect,
                               index_=self.index)
+
+    def quit(self) -> None:
+        Broadcast.remove_object_id(self.id_)
+        obj = Broadcast(self.delete_object())
+        obj.queue()
+        self.kill()
 
     def update(self) -> None:
 
@@ -123,16 +141,19 @@ class AsteroidHalo(pygame.sprite.Sprite):
                 self.rect = self.image.get_rect(center=self.object.rect.center)
                 self.index += 1
                 if self.index > self.length:
-                    self.kill()
+                    self.quit()
+                    return
+
+                self.asteroidHalo_object.update(
+                    {'frame': self.gl.FRAME, 'rect': self.rect, 'index': self.index})
+                self.asteroidHalo_object.queue()
 
                 self.dt = 0
 
             else:
-                self.kill()
+                self.quit()
+                return
+        else:
+            self.dt += self.gl.TIME_PASSED_SECONDS
 
-        if self.rect.colliderect(self.gl.SCREENRECT):
-            self.asteroidHalo_object.update(
-                {'frame': self.gl.FRAME, 'rect': self.rect, 'index': self.index})
-            self.asteroidHalo_object.queue()
 
-        self.dt += self.gl.TIME_PASSED_SECONDS

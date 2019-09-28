@@ -17,12 +17,12 @@ except ImportError:
 pygame.init()
 pygame.mixer.init()
 
-
 BLUE_LASER_SOUND = pygame.mixer.Sound('Assets\\heavylaser1.ogg')
 RED_LASER_SOUND = pygame.mixer.Sound('Assets\\fire_bolt_micro.ogg')
 EXPLOSION_SOUND = pygame.mixer.Sound('Assets\\explosion_11.ogg')
 IMPACT = pygame.mixer.Sound('Assets\\Impact.ogg')
 IMPACT1 = pygame.mixer.Sound('Assets\\boom1.ogg')
+IMPACT_SHORT = pygame.mixer.Sound('Assets\\Impact_short.ogg')
 
 
 if __name__ == '__main__':

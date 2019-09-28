@@ -1,6 +1,6 @@
 
 import pygame
-from NetworkBroadcast import Broadcast, AnimatedSprite, SoundAttr
+from NetworkBroadcast import Broadcast, AnimatedSprite, SoundAttr, DeleteSpriteCommand
 from Sounds import EXPLOSION_SOUND
 
 
@@ -44,6 +44,16 @@ class Explosion(pygame.sprite.Sprite):
         # Create sound object
         self.explosion_sound_object = Broadcast(self.make_sound_object('EXPLOSION_SOUND'))
 
+        Broadcast.add_object_id(self.id_)
+
+    def delete_object(self) -> DeleteSpriteCommand:
+        """
+        Send a command to kill an object on client side.
+
+        :return: DetectCollisionSprite object
+        """
+        return DeleteSpriteCommand(frame_=self.gl.FRAME, to_delete_={self.id_: self.texture_name})
+
     def play_explosion_sound(self) -> None:
         """
         Play the sound explosion locally and forward the sound object to the client(s).
@@ -79,7 +89,13 @@ class Explosion(pygame.sprite.Sprite):
         return AnimatedSprite(frame_=self.gl.FRAME, id_=self.id_, surface_=self.texture_name,
                               layer_=self.layer, blend_=self.blend, rect_=self.rect,
                               index_=self.index)
-        
+
+    def quit(self) -> None:
+        Broadcast.remove_object_id(self.id_)
+        obj = Broadcast(self.delete_object())
+        obj.queue()
+        self.kill()
+
     def update(self):
 
         if self.dt > self.timing:
@@ -94,20 +110,22 @@ class Explosion(pygame.sprite.Sprite):
                 self.index += 1
 
                 if self.index > self.length:
-                    self.kill()
+                    self.quit()
+                    return
 
                 self.dt = 0
 
+                self.explosion_object.update({'frame': self.gl.FRAME,
+                                              'rect': self.rect,
+                                              'index': self.index,
+                                              'blend': self.blend})
+                self.explosion_object.queue()
+
             else:
-                self.kill()
+                self.quit()
+                return
+        else:
+            self.dt += self.gl.TIME_PASSED_SECONDS
 
         # update the network object every frames to avoid flickering appearance
         # on client side.
-        if self.rect.colliderect(self.gl.SCREENRECT):
-            self.explosion_object.update({'frame': self.gl.FRAME,
-                                          'rect': self.rect,
-                                          'index': self.index,
-                                          'blend': self.blend})
-            self.explosion_object.queue()
-
-        self.dt += self.gl.TIME_PASSED_SECONDS

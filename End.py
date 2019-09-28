@@ -5,6 +5,7 @@ from random import randint
 
 from TextureTools import spread_sheet_per_pixel, spread_sheet_fs8
 from TextureTools import hue_surface, wave_x, hge
+from Textures import LIGHT1, DIALOGBOX_READOUT, DIALOGBOX_READOUT_RED
 
 __author__ = "Yoann Berenguer"
 __copyright__ = "Copyright 2007, Cobra Project"
@@ -17,7 +18,7 @@ __email__ = "yoyoberenguer@hotmail.com"
 import pygame
 from pygame import freetype
 import os
-from numpy import linspace, repeat, newaxis, dstack, uint8
+from numpy import linspace, repeat, newaxis, dstack, uint8, logspace
 
 
 class LayeredUpdatesModified(pygame.sprite.LayeredUpdates):
@@ -110,6 +111,10 @@ class PlayerLost(pygame.sprite.Sprite):
             rect1 = self.font.get_rect("game over", style=freetype.STYLE_NORMAL, size=35)
             self.font.render_to(self.image, (self.rect.w // 2 - rect1.w // 2, 125), "game over",
                                 fgcolor=pygame.Color(220, 30, 25), size=35)
+
+            rect2 = self.font.get_rect("mission fail", style=freetype.STYLE_NORMAL, size=35)
+            self.font.render_to(self.image, (self.rect.w // 2 - rect2.w // 2, 200), "mission fail",
+                                fgcolor=pygame.Color(220, 30, 25), size=35)
             # put the processed images into a buffer
             gl_.buffers['PlayerLost'] = memoryview(self.image.copy().get_view('3'))
             gl_.buffers['PLAYERLOST_GLITCH'] = memoryview(self.glitch.copy().get_view('3'))
@@ -123,22 +128,22 @@ class PlayerLost(pygame.sprite.Sprite):
             self.image.blit(PlayerLost.DIALOGBOX_READOUT_RED[self.inc % len(PlayerLost.DIALOGBOX_READOUT_RED) - 1],
                             (80, 105), special_flags=pygame.BLEND_RGB_ADD)
 
-            pygame.draw.rect(self.screen, self.red, self.red_rect, 2)
-            pygame.draw.rect(self.screen, self.red, self.red_rect1, 2)
-            pygame.draw.rect(self.screen, self.red, self.red_rect2, 2)
+            # pygame.draw.rect(self.screen, self.red, self.red_rect, 2)
+            # pygame.draw.rect(self.screen, self.red, self.red_rect1, 2)
+            # pygame.draw.rect(self.screen, self.red, self.red_rect2, 2)
 
-            if not self.screenrect.contains(self.red_rect):
-                self.red_rect = self.red_rect_default.copy()
+            # if not self.screenrect.contains(self.red_rect):
+            #     self.red_rect = self.red_rect_default.copy()
+            #
+            # if not self.screenrect.contains(self.red_rect1):
+            #     self.red_rect1 = self.red_rect_default.copy()
+            #
+            # if not self.screenrect.contains(self.red_rect2):
+            #     self.red_rect2 = self.red_rect_default.copy()
 
-            if not self.screenrect.contains(self.red_rect1):
-                self.red_rect1 = self.red_rect_default.copy()
-
-            if not self.screenrect.contains(self.red_rect2):
-                self.red_rect2 = self.red_rect_default.copy()
-
-            self.red_rect.inflate_ip(4, 4)
-            self.red_rect1.inflate_ip(4, 4)
-            self.red_rect2.inflate_ip(4, 4)
+            # self.red_rect.inflate_ip(4, 4)
+            # self.red_rect1.inflate_ip(4, 4)
+            # self.red_rect2.inflate_ip(4, 4)
 
             self.image.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
 
@@ -155,7 +160,7 @@ class PlayerLost(pygame.sprite.Sprite):
 class PlayerWin(pygame.sprite.Sprite):
     containers = None
 
-    def __init__(self, font_, image_, layer_):
+    def __init__(self, gl_, player_, font_, image_, layer_, score_):
 
         self._layer = layer_
         pygame.sprite.Sprite.__init__(self, PlayerWin.containers)
@@ -164,76 +169,91 @@ class PlayerWin(pygame.sprite.Sprite):
         self.screenrect = self.screen.get_rect()
         self.image = image_
         self.image_copy = image_
+        self.w, self.h = self.screenrect.size
+        self.w2, self.h2 = self.w >> 1, self.h >> 1
         self.rect = self.image.get_rect(
-            topleft=((self.screenrect.w >> 1) - (self.image.get_width() >> 1),
-                     (self.screenrect.h >> 1) - (self.image.get_height() >> 1)))
+            topleft=(self.w2 - (self.image.get_width() >> 1),
+                     self.h2 - (self.image.get_height() >> 1)))
         self.inc = 0
-        self.green = pygame.Color(25, 124, 88, 0)
+        self.font = font_
+        self.gl = gl_
+        self.dim = len(DIALOGBOX_READOUT) - 1
+
+        self.green = pygame.Color(255, 24, 18, 0)
+        """
         self.red_rect = self.rect.copy()
         self.red_rect1 = self.rect.copy()
         self.red_rect1.inflate_ip(-100, -100)
         self.red_rect2 = self.rect.copy()
         self.red_rect2.inflate_ip(-200, -200)
         self.red_rect_default = self.red_rect1.copy()
-        self.font = font_
-        self.w2, self.h2 = self.screenrect.w >> 1, self.screenrect.h >> 1
+        """
+        self.score = score_
+        self.score_inc = linspace(1, self.score, 100)
+        self.font_number = freetype.Font('Assets\\Fonts\\ARCADE_R.ttf', size=12)
+        self.i = 0
+        self.player = player_
 
     def update(self):
 
-        self.image = self.image_copy.copy()
+        if self.player.alive():
 
-        self.image.blit(DIALOGBOX_READOUT[self.inc % len(DIALOGBOX_READOUT) - 1],
-                        (80, 105), special_flags=pygame.BLEND_RGB_ADD)
+            self.image = self.image_copy.copy()
 
-        pygame.draw.rect(self.screen, self.green, self.red_rect, 2)
-        pygame.draw.rect(self.screen, self.green, self.red_rect1, 2)
-        pygame.draw.rect(self.screen, self.green, self.red_rect2, 2)
+            self.image.blit(DIALOGBOX_READOUT[self.inc % self.dim],
+                            (80, 105), special_flags=pygame.BLEND_RGB_ADD)
+            """
+            pygame.draw.rect(self.screen, self.green, self.red_rect, 2)
+            pygame.draw.rect(self.screen, self.green, self.red_rect1, 2)
+            pygame.draw.rect(self.screen, self.green, self.red_rect2, 2)
+    
+            if not self.screenrect.contains(self.red_rect):
+                self.red_rect = self.red_rect_default.copy()
+    
+            if not self.screenrect.contains(self.red_rect1):
+                self.red_rect1 = self.red_rect_default.copy()
+    
+            if not self.screenrect.contains(self.red_rect2):
+                self.red_rect2 = self.red_rect_default.copy()
+    
+            self.red_rect.inflate_ip(4, 4)
+            self.red_rect1.inflate_ip(4, 4)
+            self.red_rect2.inflate_ip(4, 4)
+            """
 
-        if not self.screenrect.contains(self.red_rect):
-            self.red_rect = self.red_rect_default.copy()
+            rect1 = self.font.get_rect("stage clear", style=freetype.STYLE_NORMAL, size=35)
+            self.font.render_to(self.image, ((self.rect.w >> 1) - (rect1.w >> 1), 125), "stage clear",
+                                fgcolor=pygame.Color(60, 205, 64), size=35)
+            xx = 200
+            self.font.render_to(self.image, (100, xx), "clear bonus",
+                                fgcolor=pygame.Color(247, 255, self.gl.FRAME % 156), size=18)
 
-        if not self.screenrect.contains(self.red_rect1):
-            self.red_rect1 = self.red_rect_default.copy()
+            xx += 50
+            self.font.render_to(self.image, (100, xx), "gems collected",
+                                fgcolor=pygame.Color(247, 255, self.gl.FRAME % 156), size=18)
 
-        if not self.screenrect.contains(self.red_rect2):
-            self.red_rect2 = self.red_rect_default.copy()
+            xx += 150
+            self.font.render_to(self.image, (100, xx), "score",
+                                fgcolor=pygame.Color(247, 255, self.gl.FRAME % 156), size=20)
 
-        self.red_rect.inflate_ip(4, 4)
-        self.red_rect1.inflate_ip(4, 4)
-        self.red_rect2.inflate_ip(4, 4)
+            self.font_number.render_to(self.image, (200, xx), str(int(self.score_inc[int(self.i)])) if self.i < 99 else
+                                       str(int(self.score_inc[99])),
+                                       fgcolor=pygame.Color(247, 255, self.gl.FRAME % 120), size=20)
 
-        rect1 = self.font.get_rect("stage clear", style=freetype.STYLE_NORMAL, size=35)
-        self.font.render_to(self.image, (self.rect.w // 2 - rect1.w // 2, 125), "stage clear",
-                            fgcolor=pygame.Color(60, 205, 64), size=35)
-        xx = 200
-        x = self.rect.left + 100
-        self.font.render_to(self.image, (100, xx), "clear bonus",
-                            fgcolor=pygame.Color(247, 255, FRAME % 156), size=18)
-        xx += 50
-        self.font.render_to(self.image, (100, xx), "kill ratio",
-                            fgcolor=pygame.Color(247, 255, FRAME % 156), size=18)
-        xx += 50
-        self.font.render_to(self.image, (100, xx), "gems collected",
-                            fgcolor=pygame.Color(247, 255, FRAME % 156), size=18)
-        xx += 50
-        self.font.render_to(self.image, (100, xx), "life remaining",
-                            fgcolor=pygame.Color(247, 255, FRAME % 156), size=18)
-        xx += 50
-        self.font.render_to(self.image, (100, xx), "bombs remaining",
-                            fgcolor=pygame.Color(247, 255, FRAME % 156), size=18)
-        xx += 50
-        self.image.blit(GR_LINE, (100, xx))
-        xx += 50
-        self.font.render_to(self.image, (100, xx), "total",
-                            fgcolor=pygame.Color(247, 255, FRAME % 156), size=18)
-
-        # self.image = hge(self.image, 0.1, 0.1, 20).convert()
-        self.image.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
-
-        self.inc += 1
+            # self.image = hge(self.image, 0.1, 0.1, 20).convert()
+            self.image.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+            self.i += 0.1
+            self.inc += 1
+        else:
+            self.kill()
 
 
 if __name__ == '__main__':
+
+    class GL:
+        buffers = {}
+        TIME_PASSED_SECONDS = 0
+        ...
 
     SCREENRECT = pygame.Rect(0, 0, 800, 1024)
     GL.SCREENRECT = SCREENRECT
@@ -256,22 +276,6 @@ if __name__ == '__main__':
         FINAL_MISSION, (int(FINAL_MISSION.get_width() * .8), int(FINAL_MISSION.get_height() * .8)))
     FINAL_MISSION.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
 
-    DIALOGBOX_READOUT = spread_sheet_fs8('Assets\\Readout_512x512_6x6_.png', 512, 6, 6)
-    i = 0
-    for surface in DIALOGBOX_READOUT:
-        # surface.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
-        DIALOGBOX_READOUT[i] = pygame.transform.smoothscale(
-            surface, (FINAL_MISSION.get_width() - 150, FINAL_MISSION.get_height() - 150))
-        DIALOGBOX_READOUT[i] = pygame.transform.flip(DIALOGBOX_READOUT[i], True, True)
-        i += 1
-    DIALOGBOX_READOUT_RED = spread_sheet_fs8('Assets\\Readout_512x512_6x6_red_.png', 512, 6, 6)
-    i = 0
-    for surface in DIALOGBOX_READOUT_RED:
-        # surface.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
-        DIALOGBOX_READOUT_RED[i] = pygame.transform.smoothscale(
-            surface, (FINAL_MISSION.get_width() - 150, FINAL_MISSION.get_height() - 150))
-        DIALOGBOX_READOUT_RED[i] = pygame.transform.flip(DIALOGBOX_READOUT_RED[i], True, True)
-        i += 1
 
     line = pygame.Rect(0, 0, 700, 4)
     GR_LINE = pygame.Surface(line.size, depth=32, flags=(pygame.SWSURFACE | pygame.SRCALPHA))
@@ -296,11 +300,18 @@ if __name__ == '__main__':
 
     All = LayeredUpdatesModified()
 
+    """
+    # PLAYER WIN 
     PlayerLost.containers = All
     PlayerLost.DIALOGBOX_READOUT_RED = DIALOGBOX_READOUT_RED
     PlayerLost.SKULL = SKULL
     PlayerLost(gl_=GL, font_=font, image_=FINAL_MISSION, layer_=0)
-
+    """
+    # PLAYER LOST
+    PlayerWin.containers = All
+    PlayerWin.DIALOGBOX_READOUT_RED = DIALOGBOX_READOUT_RED
+    PlayerWin.SKULL = SKULL
+    PlayerWin(gl_=GL, font_=font, image_=FINAL_MISSION, layer_=0, score_=950000)
     while not STOP_GAME:
 
         SCREEN.fill((0, 0, 0, 0))

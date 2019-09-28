@@ -1,7 +1,7 @@
 import pygame
 from random import randint, uniform
 from math import degrees, atan2
-from NetworkBroadcast import Broadcast, RotateSprite
+from NetworkBroadcast import Broadcast, RotateSprite, DeleteSpriteCommand
 
 __author__ = "Yoann Berenguer"
 __credits__ = ["Yoann Berenguer"]
@@ -20,7 +20,7 @@ class ShootingStar(pygame.sprite.Sprite):
 
     def __init__(self,
                  gl_,           # global variables
-                 layer_=-1,     # layer where the shooting sprite will be display
+                 layer_=-4,     # layer where the shooting sprite will be display
                  timing_=16,    # refreshing rate, default is 16ms (60 fps)
                  surface_name_=''
                  ):
@@ -49,24 +49,46 @@ class ShootingStar(pygame.sprite.Sprite):
         self.id_ = id(self)
         self.shooting_star_object = Broadcast(self.make_object())
 
+        Broadcast.add_object_id(self.id_)
+
+    def delete_object(self) -> DeleteSpriteCommand:
+        """
+        Send a command to kill an object on client side.
+
+        :return: DetectCollisionSprite object
+        """
+        return DeleteSpriteCommand(frame_=self.gl.FRAME, to_delete_={self.id_: self.surface_name})
+
     def make_object(self) -> RotateSprite:
         return RotateSprite(frame_=self.gl.FRAME, id_=self.id_, surface_=self.surface_name,
                             layer_=self.layer, blend_=self.blend, rect_=self.rect,
                             rotation_=self.rotation)
+
+    def quit(self) -> None:
+        Broadcast.remove_object_id(self.id_)
+        obj = Broadcast(self.delete_object())
+        obj.queue()
+        self.kill()
 
     def update(self):
 
         if self.dt > self.timing:
 
             if self.rect.centery > self.h:
-                self.kill()
+                self.quit()
+                return
             self.rect = self.image.get_rect(center=self.position)
             self.position += self.speed
+            if self.rect.colliderect(self.gl.SCREENRECT):
+                self.shooting_star_object.update({'frame': self.gl.FRAME,
+                                                  'rect': self.rect, 'rotation': self.rotation})
+                self.shooting_star_object.queue()
+
             self.dt = 0
 
-        if self.rect.colliderect(self.gl.SCREENRECT):
-            self.shooting_star_object.update({'frame': self.gl.FRAME, 'rect': self.rect, 'rotation': self.rotation})
-            self.shooting_star_object.queue()
+        else:
+            self.dt += self.gl.TIME_PASSED_SECONDS
 
-        self.dt += self.gl.TIME_PASSED_SECONDS
+
+
 

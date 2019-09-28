@@ -8,5 +8,5 @@ setup(
     license='',
     author='Yoann',
     author_email='',
-    description='', install_requires=['pygame', 'lz4', 'matplotlib']
+    description='', install_requires=['pygame', 'lz4', 'matplotlib', 'numpy']
 )

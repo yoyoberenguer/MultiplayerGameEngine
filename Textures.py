@@ -1,7 +1,11 @@
 
 import pygame
 from random import randint
+
+from numpy import linspace
+
 from TextureTools import *
+import os
 
 pygame.init()
 pygame.display.set_mode((800, 1024))
@@ -47,8 +51,13 @@ create_stars(BACK)
 BACK_ARRAY = pygame.surfarray.array3d(BACK)
 BACK1 = BACK_ARRAY[:800, 0:1024]
 BACK1_S = pygame.surfarray.make_surface(BACK1)
+BACK1_S.convert(32, pygame.RLEACCEL)
+# pygame.image.save(BACK1_S, 'Background1.png')
 BACK2 = BACK_ARRAY[:800, 1024:2048]
 BACK2_S = pygame.surfarray.make_surface(BACK2)
+BACK2_S.convert(32, pygame.RLEACCEL)
+# pygame.image.save(BACK2_S, 'Background2.png')
+BACK3 = pygame.image.load('Assets\\BACK2.png').convert(32, pygame.RLEACCEL)
 
 CL1 = pygame.image.load('Assets\\cloud22_.png') \
     .convert(32, pygame.HWSURFACE | pygame.HWACCEL | pygame.RLEACCEL)
@@ -66,7 +75,7 @@ BLUE_LASER = pygame.image.load('Assets\\lzrfx021.png').convert_alpha()
 BLUE_LASER = pygame.transform.rotate(BLUE_LASER, 90)
 BLUE_LASER = pygame.transform.smoothscale(BLUE_LASER, (24, 35))
 
-RED_LASER = pygame.image.load('Assets\\lzrfx033.png').convert()
+RED_LASER = pygame.image.load('Assets\\lzrfx033.png').convert(32, pygame.RLEACCEL)
 RED_LASER = pygame.transform.rotate(RED_LASER, 90)
 RED_LASER = pygame.transform.smoothscale(RED_LASER, (24, 35))
 
@@ -187,22 +196,28 @@ del steps
 
 SHOOTING_STAR = pygame.image.load('Assets\\shooting_star.png')\
         .convert(32, pygame.HWSURFACE | pygame.HWACCEL | pygame.RLEACCEL)
-SHOOTING_STAR = pygame.transform.scale(SHOOTING_STAR, (25, 80))
+SHOOTING_STAR = pygame.transform.smoothscale(SHOOTING_STAR, (25, 80))
 
 BACKGROUND = pygame.image.load('Assets\\Background.jpg').convert()
-BACKGROUND = pygame.transform.scale(BACKGROUND, (800, 1024))
+BACKGROUND = pygame.transform.smoothscale(BACKGROUND, (800, 1024))
 
 FRAME = pygame.Surface((760, 460), depth=32, flags=(pygame.SWSURFACE | pygame.SRCALPHA))
 FRAME.convert_alpha()
 FRAME.fill((10, 15, 10, 200))
 
 FRAMEBORDER = pygame.image.load('Assets\\FrameBorder.png')
-FRAMEBORDER = pygame.transform.scale(FRAMEBORDER, (800, FRAMEBORDER.get_height()))
+FRAMEBORDER = pygame.transform.smoothscale(FRAMEBORDER, (800, FRAMEBORDER.get_height()))
 FRAMEBORDER.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
 SKULL = pygame.image.load('Assets\\toxigineSkull_.png').convert()
 SKULL = pygame.transform.smoothscale(
     SKULL, (int(SKULL.get_width() * .8), int(SKULL.get_height() * .8)))
 SKULL.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+
+
+SKULL_64x64 = pygame.transform.smoothscale(
+    pygame.image.load('Assets\\toxigineSkull_.png'), (64, 64))
+
+
 FINAL_MISSION = pygame.image.load('Assets\\container.png').convert()
 FINAL_MISSION = pygame.transform.smoothscale(
     FINAL_MISSION, (int(FINAL_MISSION.get_width() * .8), int(FINAL_MISSION.get_height() * .8)))
@@ -251,3 +266,116 @@ COSMIC_DUST2 = pygame.image.load('Assets\\fx_.png')
 COSMIC_DUST2.convert(32, pygame.RLEACCEL)
 COSMIC_DUST2 = pygame.transform.smoothscale(COSMIC_DUST2, (4, 10))
 COSMIC_DUST2.set_alpha(255)
+
+STATION = pygame.image.load('Assets\\Station.png').convert()
+STATION = pygame.transform.smoothscale(STATION, (300, 300))
+STATION.set_colorkey((0, 0, 0), pygame.RLEACCEL)
+
+BLUE_PLANET = pygame.image.load('Assets\\blueplanet_.png')
+BLUE_PLANET.convert(32, pygame.RLEACCEL)
+
+# GREEN_PLANET = pygame.image.load('Assets\\greenplanet.png')
+# GREEN_PLANET = pygame.transform.smoothscale(GREEN_PLANET, (500, 500))
+# GREEN_PLANET.convert()
+
+MAJOR_ASTEROID = pygame.image.load('Assets\\Aster2.png').convert_alpha()
+
+
+VOICE_MODULATION = []
+VOICE_MODULATION.extend((pygame.image.load('Assets\\techAudio_.png').convert(),
+                         pygame.image.load('Assets\\techAudio1_.png').convert(),
+                         pygame.image.load('Assets\\techAudio2_.png').convert(),
+                         pygame.image.load('Assets\\techAudio3_.png').convert(),
+                         pygame.image.load('Assets\\techAudio4_.png').convert()))
+i = 0
+for surface in VOICE_MODULATION:
+    surface.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+    VOICE_MODULATION[i] = surface
+    i += 1
+
+DIALOGBOX_READOUT = spread_sheet_fs8('Assets\\Readout_256x256_.png', 256, 6, 6)
+i = 0
+for surface in DIALOGBOX_READOUT:
+    surface.convert()
+    surface.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+    surface = pygame.transform.flip(surface, True, True)
+    DIALOGBOX_READOUT[i] = pygame.transform.smoothscale(surface, (400, 250))
+    i += 1
+
+NAMIKO = [pygame.transform.smoothscale(pygame.image.load('Assets\\Namiko1_.png').convert(), (100, 180)),
+          pygame.transform.smoothscale(pygame.image.load('Assets\\Namiko6_.png').convert(), (100, 180)),
+          pygame.transform.smoothscale(pygame.image.load('Assets\\Namiko2_.png').convert(), (100, 180)),
+          pygame.transform.smoothscale(pygame.image.load('Assets\\Namiko7_.png').convert(), (100, 180)),
+          pygame.transform.smoothscale(pygame.image.load('Assets\\Namiko3_.png').convert(), (100, 180)),
+          pygame.transform.smoothscale(pygame.image.load('Assets\\Namiko5_.png').convert(), (100, 180)),
+          pygame.transform.smoothscale(pygame.image.load('Assets\\Namiko4_.png').convert(), (100, 180))]
+for image in NAMIKO:
+    image.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+
+FRAMEBORDER = pygame.image.load('Assets\\FrameBorder_.png').convert()
+FRAMEBORDER.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+FRAMEBORDER = pygame.transform.smoothscale(FRAMEBORDER, (430, 250))
+FRAMEBORDER = pygame.transform.smoothscale(FRAMEBORDER, (FRAMEBORDER.get_width(), FRAMEBORDER.get_height() - 40))
+FRAMESURFACE = pygame.Surface((FRAMEBORDER.get_width() - 15, FRAMEBORDER.get_height() - 20),
+                                  pygame.RLEACCEL).convert()
+FRAMESURFACE.fill((10, 10, 18, 200))
+
+LIFE_HUD = pygame.image.load('Assets\\lifehud_275x80.png').convert_alpha()
+w, h = LIFE_HUD.get_size()
+# LIFE_HUD = pygame.transform.smoothscale(LIFE_HUD, (int(w * 1.2), h))
+# LIFE_HUD.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+
+LIFE_HUD_DEAD = pygame.image.load('Assets\\lifehud_275x80.png').convert_alpha()
+LIFE_HUD_DEAD.blit(SKULL_64x64, (w // 2 - 32, h // 2 - 32), special_flags=pygame.BLEND_RGB_ADD)
+
+VARIABLE_TEXTURE = spread_sheet_per_pixel_fs8('Assets\\Blurry_Water1_256x256_6x6_2_alpha.png', 256, 6, 6)
+
+FLARE = pygame.image.load('Assets\\flare1_.png').convert()
+FLARE = pygame.transform.smoothscale(FLARE, (600, 35))
+FLARE.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+FLARE = [FLARE] * 5
+
+LIGHT = pygame.image.load('Assets\\radial5_.png').convert()
+LIGHT.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+LIGHT1 = pygame.transform.smoothscale(LIGHT, (100, 100))
+LIGHT2 = pygame.transform.smoothscale(LIGHT, (250, 250))
+LIGHT3 = pygame.transform.smoothscale(LIGHT, (400, 400))
+
+LIGHT = [LIGHT1, LIGHT2, LIGHT3]
+
+
+PLAYER_EXPLOSION1 = spread_sheet_fs8('Assets\\Atomic_skull_256x256_1.png', 256, 8, 11)
+
+grows = linspace(1, 5, 66)
+decrease = linspace(5, 1, 22)
+full = [*grows, *decrease]
+i = 0
+for surface in PLAYER_EXPLOSION1:
+    w, h = surface.get_size()
+    ww, hh = int(w * full[i]), int(h * full[i])
+    PLAYER_EXPLOSION1[i] = pygame.transform.smoothscale(surface, (ww, hh))
+    i += 1
+
+
+PLAYER_EXPLOSION2 = spread_sheet_fs8('Assets\\Bomb_5_512x512_4x11_.png', 512, 4, 11)
+
+grows = linspace(1, 4, 66)
+decrease = linspace(4, 1, 22)
+full = [*grows, *decrease]
+i = 0
+for surface in PLAYER_EXPLOSION2:
+    w, h = surface.get_size()
+    ww, hh = int(w * full[i]), int(h * full[i])
+    PLAYER_EXPLOSION2[i] = pygame.transform.smoothscale(surface, (ww, hh))
+    i += 1
+
+NEBULA = pygame.image.load('Assets\\Nebula red.png').convert()
+NEBULA = pygame.transform.smoothscale(NEBULA, (2048, 2048))
+array = pygame.surfarray.pixels3d(NEBULA)
+NEBULA2 = pygame.surfarray.make_surface(array[0:1024, 0:1024])
+NEBULA1 = pygame.surfarray.make_surface(array[0:1024, 1024:2048])
+
+ARROW_RIGHT = pygame.image.load('Assets\\chevrons.png').convert()
+ARROW_RIGHT = pygame.transform.smoothscale(ARROW_RIGHT, (101, 74))
+ARROW_RIGHT.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+

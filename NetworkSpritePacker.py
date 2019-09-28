@@ -82,7 +82,7 @@ class SpriteClient(threading.Thread):
                         # takes a full LZ4 frame, decompresses it (and optionally verifies the uncompressed data
                         # against the stored checksum), and returns the uncompressed data.
                         compress_data = lz4.frame.compress(pickle_data,
-                                                           compression_level=lz4.frame.COMPRESSIONLEVEL_MAX) # _MINHC)
+                                                           compression_level=lz4.frame.COMPRESSIONLEVEL_MAX)  # _MINHC)
                         # send the entire buffer bytes like data
                         self.sock.sendall(compress_data)
 

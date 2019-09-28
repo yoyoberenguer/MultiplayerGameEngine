@@ -65,5 +65,7 @@ class DisplayScore(pygame.sprite.Sprite):
 
             self.dt = 0
 
-        self.old_score = self.score
-        self.dt += self.gl.TIME_PASSED_SECONDS
+            self.old_score = self.score
+
+        else:
+            self.dt += self.gl.TIME_PASSED_SECONDS

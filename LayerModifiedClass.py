@@ -27,15 +27,35 @@ class LayeredUpdatesModified(pygame.sprite.LayeredUpdates):
 
         # self.sprites() returns a ordered list of sprites (first back, last top).
         for spr in self.sprites():
-            if spr.alive():
-                rec = spritedict[spr]
+
+            if spr.alive() and isinstance(spr.image, pygame.Surface):
+
                 if hasattr(spr, 'blend') and spr.blend is not None:
-                    newrect = surface_blit(spr.image, spr.rect, special_flags=spr.blend)
+                    try:
+                        if isinstance(spr.image, pygame.Surface):
+                            newrect = surface_blit(spr.image, spr.rect, special_flags=spr.blend)
+                        else:
+                            raise ValueError('sprite image attribute is not a pygame Surface.')
+                    except pygame.error as e:
+                        # Most likely to be <Surfaces must not be locked during blit> when starting
+                        # player1 and player2 on the same host (sharing the same textures)
+                        print('\n[-] pygame.error : %s ', e)
 
                 else:
-                    newrect = surface_blit(spr.image, spr.rect)
+                    try:
+
+                        newrect = surface_blit(spr.image, spr.rect)
+
+                    except pygame.error as e:
+                        # Most likely to be <Surfaces must not be locked during blit> when starting
+                        # player1 and player2 on the same host (sharing the same textures)
+                        print('\n[-] pygame.error : %s ', e)
 
                 spritedict[spr] = newrect
+
+            # spr.image is not a surface!
+            else:
+                ...
 
         return dirty
 

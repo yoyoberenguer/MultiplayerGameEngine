@@ -14,7 +14,7 @@ except ImportError:
     raise SystemExit
 
 try:
-    from NetworkBroadcast import Broadcast, AnimatedSprite
+    from NetworkBroadcast import Broadcast, AnimatedSprite, DeleteSpriteCommand
 except ImportError:
     print("\nOne or more game libraries is missing on your system."
           "\nDownload the source code from:\n"
@@ -27,8 +27,8 @@ class AfterBurner(pygame.sprite.Sprite):
     containers = None
     images = None
 
-    def __init__(self, parent_, gl_, offset_,
-                 timing_=16, blend_=0, layer_=0, texture_name_='EXHAUST'):
+    def __init__(self, parent_, gl_, offset_:tuple,
+                 timing_:int=8, blend_:int=0, layer_:int=0, texture_name_='EXHAUST'):
         """
         Create an exhaust effect for the player's
 
@@ -94,6 +94,16 @@ class AfterBurner(pygame.sprite.Sprite):
         self.id_ = id(self)
         self.afterburner_object = Broadcast(self.make_object())
 
+        Broadcast.add_object_id(self.id_)
+
+    def delete_object(self) -> DeleteSpriteCommand:
+        """
+        Send a command to kill an object on client side.
+
+        :return: DetectCollisionSprite object
+        """
+        return DeleteSpriteCommand(frame_=self.gl.FRAME, to_delete_={self.id_: self.texture_name})
+
     def make_object(self) -> AnimatedSprite:
         """
         Create a network object (AnimatedSprite)
@@ -102,7 +112,13 @@ class AfterBurner(pygame.sprite.Sprite):
         return AnimatedSprite(frame_=self.gl.FRAME, id_=self.id_, surface_=self.texture_name,
                               layer_=self.layer, blend_=self.blend, rect_=self.rect,
                               index_=self.index)
-        
+
+    def quit(self) -> None:
+        Broadcast.remove_object_id(self.id_)
+        obj = Broadcast(self.delete_object())
+        obj.queue()
+        self.kill()
+
     def update(self) -> None:
         """
         Update the sprite.
@@ -121,17 +137,17 @@ class AfterBurner(pygame.sprite.Sprite):
                 x, y = self.parent.rect.centerx + self.offset[0], self.parent.rect.centery + self.offset[1]
                 self.rect.center = (x, y)
 
+                if self.rect.colliderect(self.gl.SCREENRECT):
+                    self.afterburner_object.update({'frame': self.gl.FRAME,
+                                                    'rect': self.rect, 'index': self.index})
+                    self.afterburner_object.queue()
+
                 self.dt = 0
                 self.index += 1
             else:
-                self.kill()
+                self.quit()
+                return
+        else:
+            self.dt += self.gl.TIME_PASSED_SECONDS
 
-        # Create a network object if parent is alive and if sprite
-        # position is still in the display 'self.gl.SCREENRECT'
-        if self.parent.alive():
-            if self.rect.colliderect(self.gl.SCREENRECT):
-                self.afterburner_object.update({'frame': self.gl.FRAME, 'rect': self.rect, 'index': self.index})
-                self.afterburner_object.queue()
-                ...
 
-        self.dt += self.gl.TIME_PASSED_SECONDS

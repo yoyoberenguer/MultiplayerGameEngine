@@ -1,5 +1,7 @@
 import threading
 import pygame
+from pygame import freetype
+import os
 from LayerModifiedClass import LayeredUpdatesModified
 
 
@@ -16,6 +18,15 @@ class GL(object):
     ASTEROID = pygame.sprite.Group()
     PLAYER_SHOTS = pygame.sprite.Group()
     TRANSPORT = pygame.sprite.GroupSingle()  # Not used by Player 2
+    BACKGROUND = pygame.sprite.Group()       # Background group
+
+    # Contains all the sprite id of sprites being display on the server side.
+    # Used for comparing server and clients sprites.
+    GROUP_ALIVE = set()
+
+    # INSERT_GROUP = None
+    # DELETE_GROUP = None
+    # SPRITE_GROUP = None
 
     P1CS_STOP = False                       # Variable stop player 1 game loop
     P2CS_STOP = False                       # Variable stop player 2 game loop
@@ -35,7 +46,7 @@ class GL(object):
     SPRITE_SERVER_STOP = False               # STOP the SpriteServer thread
     SPRITE_CLIENT_STOP = False               # STOP the SpriteClient thread
     RETRY = 100                              # Attempts before terminating network threads
-    BUFFER = 2048
+    BUFFER = 16384
 
     REMOTE_FRAME = 0                        # Server frame number (Master frame number)
     INSPECT = set()
@@ -49,7 +60,7 @@ class GL(object):
 
     CLIENTS = {}                            # contains all the client connected to the server
 
-    buffers = {}                            # buffer containing images already processed. 
+    buffers = {}                            # buffer containing images already processed.
 
     ACCELERATION = 1                        # Acceleration to apply
 

@@ -1,12 +1,13 @@
 # encoding: utf-8
-
+import os
 import socket
+import sys
+
 import _pickle as cpickle
 import threading
 import time
 import copyreg
-
-from LifeBar import HorizontalBar
+import threading
 
 try:
     import pygame
@@ -23,7 +24,10 @@ except ImportError:
     raise SystemExit
 
 try:
-
+    from LifeBar import HorizontalBar, ShowLifeBar
+    from Sounds import BLUE_LASER_SOUND, RED_LASER_SOUND, \
+        EXPLOSION_SOUND, IMPACT, IMPACT1, IMPACT_SHORT
+    from Asteroids import Debris
     from Gems import MakeGems
     from SoundServer import SoundControl
     from random import uniform
@@ -40,6 +44,8 @@ try:
     from pygame import freetype
     from PlayerScore import DisplayScore
     from CosmicDust import COSMIC_DUST_ARRAY, create_dust, display_dust
+    from Textures import *
+    from Dialogs import DialogBox
 
 except ImportError:
     print("\nOne or more game libraries is missing on your system."
@@ -73,6 +79,7 @@ class Shot(pygame.sprite.Sprite):
     containers = None
     last_shot = 0
     shooting = False
+    mask = None
 
     def __init__(self, parent_, pos_, gl_, timing_, layer_, surface_name_=''):
         self.layer = layer_
@@ -91,7 +98,8 @@ class Shot(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=self.pos)
         self.dt = 0
         self.blend = pygame.BLEND_RGB_ADD
-        self.mask = pygame.mask.from_surface(self.image)  # Image have to be convert_alpha compatible
+
+        self.mask = Shot.mask
         self.index = 0
         self.parent = parent_
         self.surface_name = surface_name_
@@ -130,11 +138,25 @@ class Shot(pygame.sprite.Sprite):
             Shot.shooting = False
             return False
 
-    def collide(self, rect_, object_) -> None:
+    def collide(self, rect_, object_, damage_=100) -> None:
         LaserImpact.containers = self.gl.All
         LaserImpact.images = IMPACT_LASER
         LaserImpact(gl_=self.gl, pos_=rect_.topleft, parent_=object_,
                     timing_=self.timing, blend_=pygame.BLEND_RGBA_ADD, layer_=0)
+
+        Flare.containers = self.gl.All
+        Flare.images = FLARE
+        Flare(gl_=self.gl, pos_=self.rect.center, timing_=8, layer_=0)
+
+        Light.containers = self.gl.All
+        Light.images = LIGHT
+        Light(gl_=self.gl, pos_=self.rect.center, timing_=8, layer_=0)
+
+        DisplayAmountDamage.containers = self.gl.All
+        DisplayAmountDamage(self.gl, str(damage_), pos_=self.rect.center, timing_=8, layer_=0)
+        self.quit()
+
+    def quit(self) -> None:
         self.kill()
 
     def update(self) -> None:
@@ -146,13 +168,135 @@ class Shot(pygame.sprite.Sprite):
                 if self.images != IMPACT_LASER:
                     self.position += self.speed
                     self.rect.center = (self.position.x, self.position.y)
+
                 self.dt = 0
             else:
                 self.kill()
+                return
+        else:
+            self.dt += self.gl.TIME_PASSED_SECONDS
 
-        if self.rect.colliderect(self.gl.SCREENRECT):
-            self.shot_object.update({'frame': self.gl.FRAME, 'rect': self.rect})
-            self.shot_object.queue()
+        if self.alive():
+            if self.rect.colliderect(self.gl.SCREENRECT):
+                self.shot_object.update({'frame': self.gl.FRAME, 'rect': self.rect})
+        self.shot_object.queue()
+
+
+class DisplayAmountDamage(pygame.sprite.Sprite):
+    containers = GL.All
+
+    def __init__(self, gl_, text_, pos_, timing_, layer_=0):
+
+        self.layer = layer_
+        pygame.sprite.Sprite.__init__(self, self.containers)
+
+        if isinstance(gl_.All, pygame.sprite.LayeredUpdates):
+            if layer_:
+                gl_.All.change_layer(self, layer_)
+
+        self.image, self.rect = ARCADE_FONT.render(text_,
+                                                   fgcolor=pygame.Color(255, 255, 0), bgcolor=None)
+        self.image_copy = self.image.copy()
+        self.rect.center = pos_
+        self.timing = timing_
+        self.gl = gl_
+        self.dt = 0
+        self.blend = 0  # pygame.BLEND_RGBA_ADD
+        self.id_ = id(self)
+        self.start = self.gl.FRAME
+        # self.dx = 0
+        # self.pos = pos_
+        # self.w, self.h = self.image.get_size()
+
+    def update(self) -> None:
+
+        if self.dt > self.timing:
+            if self.gl.FRAME - self.start > 30:
+                self.kill()
+            else:
+                # self.image = pygame.transform.smoothscale(
+                #    self.image_copy, (int(self.w + self.dx), int(self.h + self.dx)))
+                # self.rect = self.image.get_rect(center=self.pos)
+                # self.dx += 0.5
+                ...
+
+        self.dt += self.gl.TIME_PASSED_SECONDS
+
+
+class Light(pygame.sprite.Sprite):
+    images = LIGHT
+    containers = None
+
+    def __init__(self, gl_, pos_, timing_, layer_=0):
+
+        self.layer = layer_
+        pygame.sprite.Sprite.__init__(self, self.containers)
+
+        if isinstance(gl_.All, pygame.sprite.LayeredUpdates):
+            if layer_:
+                gl_.All.change_layer(self, layer_)
+        self.images = Light.images
+        self.image = Light.images[0]
+        self.rect = self.image.get_rect(center=pos_)
+        self.pos = pos_
+        self.timing = timing_
+        self.dim = len(self.images) - 2
+        self.gl = gl_
+        self.index = 0
+
+        self.dt = 0
+        self.blend = pygame.BLEND_RGBA_ADD
+        self.id_ = id(self)
+
+    def update(self) -> None:
+
+        if self.dt > self.timing:
+            self.image = self.images[self.index]
+            self.rect = self.image.get_rect(center=self.pos)
+            if self.index > self.dim:
+                self.kill()
+            self.index += 1
+
+            ...
+
+        self.dt += self.gl.TIME_PASSED_SECONDS
+
+
+class Flare(pygame.sprite.Sprite):
+    images = FLARE
+    containers = None
+
+    def __init__(self, gl_, pos_, timing_, layer_=0):
+
+        self.layer = layer_
+        pygame.sprite.Sprite.__init__(self, self.containers)
+
+        if isinstance(gl_.All, pygame.sprite.LayeredUpdates):
+            if layer_:
+                gl_.All.change_layer(self, layer_)
+        self.images = Flare.images
+        self.image = Flare.images[0]
+        self.rect = self.image.get_rect(center=pos_)
+        self.timing = timing_
+        self.dim = len(self.images) - 2
+
+        self.gl = gl_
+        self.index = 0
+
+        self.dt = 0
+        self.blend = pygame.BLEND_RGBA_ADD
+        self.id_ = id(self)
+
+    def update(self) -> None:
+
+        if self.dt > self.timing:
+            self.image = self.images[self.index]
+
+            if self.index > self.dim:
+                self.kill()
+            self.index += 1
+
+            ...
 
         self.dt += self.gl.TIME_PASSED_SECONDS
 
@@ -160,6 +304,7 @@ class Shot(pygame.sprite.Sprite):
 class Player2(pygame.sprite.Sprite):
     containers = None
     image = None
+    mask = None
 
     def __init__(self, gl_, timing_, pos_, layer_=0):
 
@@ -178,7 +323,7 @@ class Player2(pygame.sprite.Sprite):
         self.surface_name = 'P2_SURFACE'
         self.gl = gl_
         self.dt = 0
-        self.speed = 300
+        self.speed = 600
         self.blend = 0
         self.previous_pos = pygame.math.Vector2()  # previous position
         self.life = 200
@@ -191,6 +336,7 @@ class Player2(pygame.sprite.Sprite):
         self.id_ = id(self)
         self.player_object = Broadcast(self.make_object())
         self.impact_sound_object = Broadcast(self.make_sound_object('IMPACT'))
+        self.impact_sound_object_short = Broadcast(self.make_sound_object('IMPACT_SHORT'))
 
         self.update_score = self.gl.P2_SCORE.score_update
 
@@ -205,35 +351,45 @@ class Player2(pygame.sprite.Sprite):
                 damage=self.damage)
 
     def player_lost(self) -> None:
-        PlayerLost.containers = self.gl.All
-        PlayerLost.DIALOGBOX_READOUT_RED = DIALOGBOX_READOUT_RED
-        PlayerLost.SKULL = SKULL
-        font = freetype.Font('Assets\\Fonts\\Gtek Technology.ttf', size=14)
-        PlayerLost(gl_=self.gl, font_=font, image_=FINAL_MISSION, layer_=0)
+        self.gl.All.add(LOST)
 
     def explode(self) -> None:
 
         if self.alive():
-            Explosion.images = EXPLOSION2
+            Explosion.images = PLAYER_EXPLOSION2
             Explosion.containers = self.gl.All
             Explosion(self, self.rect.center, self.gl,
-                      self.timing, self.layer, texture_name_='EXPLOSION2')
+                      8, self.layer, texture_name_='PLAYER_EXPLOSION2')
             PlayerHalo.images = HALO_SPRITE13
             PlayerHalo.containers = self.gl.All
-            PlayerHalo(texture_name_='HALO_SPRITE13', object_=self, timing_=10)
-            self.player_lost()
+            PlayerHalo(texture_name_='HALO_SPRITE13', object_=self, timing_=8)
+            # self.player_lost() -> this is done in the main loop
             self.kill()
 
     def collide(self, damage_) -> None:
-        print(self.life, damage_, self.life - damage_)
+
         if self.alive():
             self.life -= damage_
-            self.gl.MIXER.play(sound_=IMPACT, loop_=False, priority_=0,
-                               volume_=1.0, fade_out_ms=0, panning_=True,
-                               name_='IMPACT', x_=self.rect.centerx,
-                               object_id_=id(IMPACT),
-                               screenrect_=self.gl.SCREENRECT)
-            self.impact_sound_object.play()
+
+            if damage_ > 10:
+                # player loud impact sound locally
+                self.gl.MIXER.play(sound_=IMPACT, loop_=False, priority_=0,
+                                   volume_=1.0, fade_out_ms=0, panning_=True,
+                                   name_='IMPACT', x_=self.rect.centerx,
+                                   object_id_=id(IMPACT),
+                                   screenrect_=self.gl.SCREENRECT)
+                # Broadcast loud impact sound
+                self.impact_sound_object.play()
+
+            else:
+                # player short impact sound locally (for small object collision)
+                self.gl.MIXER.play(sound_=IMPACT_SHORT, loop_=False, priority_=0,
+                                   volume_=1.0, fade_out_ms=0, panning_=True,
+                                   name_='IMPACT', x_=self.rect.centerx,
+                                   object_id_=id(IMPACT),
+                                   screenrect_=self.gl.SCREENRECT)
+                # Broadcast short impact sound to client
+                self.impact_sound_object_short.play()
 
     # def hit(self, damage_):
     #    if self.alive():
@@ -242,12 +398,12 @@ class Player2(pygame.sprite.Sprite):
     def left_engine(self) -> AfterBurner:
         AfterBurner.images = EXHAUST
         return AfterBurner(self, self.gl,
-                           (-5, 38), self.timing, pygame.BLEND_RGB_ADD, self.layer - 1, texture_name_='EXHAUST')
+                           (-5, 38), 8, pygame.BLEND_RGB_ADD, self.layer - 1, texture_name_='EXHAUST')
 
     def right_engine(self) -> AfterBurner:
         AfterBurner.images = EXHAUST
         return AfterBurner(self, self.gl, (5, 38),
-                           self.timing, pygame.BLEND_RGB_ADD, self.layer - 1, texture_name_='EXHAUST')
+                           8, pygame.BLEND_RGB_ADD, self.layer - 1, texture_name_='EXHAUST')
 
     def get_centre(self) -> tuple:
         return self.rect.center
@@ -267,6 +423,21 @@ class Player2(pygame.sprite.Sprite):
             raise NameError('GRID is not defined.')
         return self.image
 
+    def contain_sprite(self, move_: tuple) -> bool:
+        """
+        Check if the player can move toward the screen edges
+        Return True if the movement is allowed else False
+        :param move_: Tuple; player movement
+        :return: True if the movement is allowed else return False
+        """
+        rect_copy = self.rect.copy()
+        rect_copy.x += move_[0]
+        rect_copy.y += move_[1]
+        if self.gl.SCREENRECT.contains(rect_copy):
+            return True
+        else:
+            return False
+
     def update(self) -> None:
 
         self.rect.clamp_ip(SCREENRECT)
@@ -278,29 +449,28 @@ class Player2(pygame.sprite.Sprite):
             if self.life < 1:
                 self.explode()
 
+            displacement = self.speed * self.gl.SPEED_FACTOR
             if self.gl.KEYS[pygame.K_UP]:
-                self.rect.move_ip(0, -self.speed * self.gl.SPEED_FACTOR)
+                if self.contain_sprite((0, -displacement)):
+                    self.rect.move_ip(0, -displacement)
 
             if self.gl.KEYS[pygame.K_DOWN]:
-                self.rect.move_ip(0, +self.speed * self.gl.SPEED_FACTOR)
+                if self.contain_sprite((0, displacement)):
+                    self.rect.move_ip(0, displacement)
 
             if self.gl.KEYS[pygame.K_LEFT]:
-                self.rect.move_ip(-self.speed * self.gl.SPEED_FACTOR, 0)
+                if self.contain_sprite((-displacement, 0)):
+                    self.rect.move_ip(-displacement, 0)
 
             if self.gl.KEYS[pygame.K_RIGHT]:
-                self.rect.move_ip(+self.speed * self.gl.SPEED_FACTOR, 0)
+                if self.contain_sprite((displacement, 0)):
+                    self.rect.move_ip(displacement, 0)
 
             if self.gl.KEYS[pygame.K_SPACE]:
                 if not Shot.is_reloading():
                     self.shooting_effect()
-                    Shot(self, self.rect.center, self.gl, self.timing,
+                    Shot(self, self.rect.center, self.gl, 0,
                          self.layer - 1, surface_name_='RED_LASER')
-
-            # Broadcast the spaceship position every frames
-            self.player_object.update({'frame': self.gl.FRAME,
-                                       'rect': self.rect,
-                                       'life': self.life})
-            self.player_object.queue()
 
             if joystick is not None:
                 self.rect.move_ip(JL3.x * self.gl.SPEED_FACTOR * self.speed,
@@ -310,25 +480,40 @@ class Player2(pygame.sprite.Sprite):
                 self.rect.centerx += random.randint(-1, 1)
                 self.rect.centery += random.randint(-1, 1)
 
+            if self.gl.FRAME < 100:
+                self.rect.centery -= 6
+
             self.previous_pos = self.rect.center
 
-            # !UPDATE the <follower> sprites with the new player position.
-            self.eng_left.update()
-            self.eng_right.update()
+            self.dt = 0
 
         else:
             self.dt += self.gl.TIME_PASSED_SECONDS
+
+        # !UPDATE the <follower> sprites with the new player position.
+        self.eng_left.update()
+        self.eng_right.update()
+
+        # Broadcast the spaceship position every frames
+        self.player_object.update({'frame': self.gl.FRAME,
+                                   'rect': self.rect,
+                                   'life': self.life})
+        self.player_object.queue()
 
         self.disruption()
 
 
 class MirroredAsteroidClass(pygame.sprite.Sprite):
 
+    containers = None
+
     def __init__(self, sprite_):
-        # No sprite group assignment in the constructor
-        pygame.sprite.Sprite.__init__(self)
+
+        pygame.sprite.Sprite.__init__(self, self.containers)
+
         self.rect = sprite_.rect
         self.image = sprite_.image
+        self.mask = pygame.mask.from_surface(self.image)
         self.blend = sprite_.blend
         self.layer = sprite_.layer
         self.id_ = sprite_.id_
@@ -344,15 +529,123 @@ class MirroredAsteroidClass(pygame.sprite.Sprite):
         self.life = sprite_.life
         self.damage = sprite_.damage
         self.points = sprite_.points
-
+        self.lava_length = len(LAVA) - 1
         self.index = 0
+        self.fxdt = 15
+        self.dt = 0
+        self.timing = 0  # let the server decide the FPS
+
+        self.vertex_array = []
+
+    def show_attributes(self):
+        if hasattr(self, '__dict__'):
+            print('\n\n')
+            for attr, value in self.__dict__.items():
+                print('Sprite id %s has attribute : %s %s' % (id(self), attr, value))
+        else:
+            raise AttributeError('Sprite id %s does not have attribute __dict__.' % id(self))
+
+    def add_particle(self) -> None:
+        angle = math.radians(uniform(0, 359))
+        self.asteroid_particles_fx(position_=pygame.math.Vector2(self.rect.center),
+                                   vector_=pygame.math.Vector2(
+                                       math.cos(angle) * randint(5, 10), math.sin(angle) * randint(5, 10)),
+                                   images_=FIRE_PARTICLES.copy(),
+                                   layer_=self.layer, blend_=pygame.BLEND_RGB_ADD)
+
+    def remove_particle(self, p_) -> None:
+        """
+        Remove the sprite from the group it belongs to and remove
+        the object from the vertex_array
+        :param p_: pygame.sprite.Sprite
+        :return: None
+        """
+        p_.kill()
+        if p_ in self.vertex_array:
+            self.vertex_array.remove(p_)
+
+    def display_asteroid_particles_fx(self) -> None:
+        # Display asteroid tail debris.
+        if self.fxdt > self.timing - 8:     # 8 ms
+
+            for p_ in self.vertex_array:
+
+                p_.image = p_.images[p_.index % p_.length]      # load the next surface
+                p_.rect.move_ip(p_.vector)                      # Move the particle
+                p_.vector *= 0.9999                             # particle deceleration / attenuation
+                rect_centre = p_.rect.center                    # rect centre after deceleration
+
+                next_image = p_.images[(p_.index + 1) % p_.length]  # Load the next image
+                # Decrease image dimensions (re-scale)
+                try:
+                    particle_size = pygame.math.Vector2(p_.w - p_.index * 4, p_.h - p_.index * 4)
+                    # transform next image (re-scale)
+                    p_.images[(p_.index + 1) % p_.length] = \
+                        pygame.transform.scale(next_image, (int(particle_size.x), int(particle_size.y)))
+                    # Redefine the rectangle after transformation to avoid a collapsing movement
+                    # to the right
+                    p_.rect = p_.images[(p_.index + 1) % p_.length].get_rect(center=rect_centre)
+
+                    # delete the particle before exception
+                    if particle_size.length() < 25:
+                        self.remove_particle(p_)
+
+                except (ValueError, IndexError):
+                    self.remove_particle(p_)
+
+                if not p_.rect.colliderect(self.gl.SCREENRECT) or p_.vector.length() < 1:
+                    self.remove_particle(p_)
+
+                p_.index += 1
+            self.fxdt = 0
+        else:
+            self.fxdt += self.gl.TIME_PASSED_SECONDS
+
+    def asteroid_particles_fx(self,
+                              position_,  # particle starting location (tuple or pygame.math.Vector2)
+                              vector_,    # particle speed, pygame.math.Vector2
+                              images_,    # surface used for the particle, (list of pygame.Surface)
+                              layer_=-1,   # Layer used to display the particles (int)
+                              blend_=pygame.BLEND_RGB_ADD  # Blend mode (int)
+                              ) -> None:
+        # Create asteroid tail particles debris
+
+        # Cap the number of particles to avoid lag
+        # if len(self.gl.FIRE_PARTICLES_FX) > 100:
+        #    return
+        # Create fire particles when the aircraft is disintegrating
+        sprite_ = pygame.sprite.Sprite()
+        self.gl.All.add(sprite_)
+        # self.gl.FIRE_PARTICLES_FX.add(sprite__)
+        # assign the particle to a specific layer
+        if isinstance(self.gl.All, pygame.sprite.LayeredUpdates):
+            self.gl.All.change_layer(sprite_, layer_)
+
+        sprite_.layer = layer_
+        sprite_.blend = blend_  # use the additive mode
+        sprite_.images = images_
+        sprite_.image = images_[0]
+        sprite_.rect = sprite_.image.get_rect(center=position_)
+        sprite_.vector = vector_    # vector
+        sprite_.w, sprite_.h = sprite_.image.get_size()
+        sprite_.index = 0
+        sprite_.length = len(sprite_.images) - 1
+        # assign update method to self.display_fire_particle_fx
+        # (local method to display the particles)
+        sprite_.update = self.display_asteroid_particles_fx
+        self.vertex_array.append(sprite_)
 
     def blend_(self) -> None:
         if not globals().__contains__('LAVA'):
             raise NameError('Texture LAVA is missing!'
                             '\nCheck file Texture.py for LAVA assigment. ')
-        self.image.blit(LAVA[self.index % len(LAVA) - 1],
-                        (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+        if isinstance(self.image, pygame.Surface):
+            self.image.blit(LAVA[self.index % self.lava_length],
+                            (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+        else:
+            print(self.image)
+            raise AttributeError('self.image is not a pygame.Surface, got %s ' % type(self.image))
+
         self.index += 1
 
     def create_gems(self, player_) -> None:
@@ -365,89 +658,118 @@ class MirroredAsteroidClass(pygame.sprite.Sprite):
             raise ValueError("Argument player_ cannot be none!.")
         if hasattr(player_, 'alive'):
             if player_.alive():
-                for _ in range(randint(3, 15)):
+                number_ = randint(3, 15)
+                for _ in range(number_):
+                    if _ < number_:
+                        MakeGems.inventory = set()
                     MakeGems(gl_=self.gl,
                              player_=player_,
                              object_=self,
                              ratio_=1.0,
-                             timing_=15,
+                             timing_=8,
                              offset_=pygame.Rect(
                                  self.rect.centerx, self.rect.centery, randint(-100, 100), randint(-100, 20)))
 
-    def make_debris(self) -> None:
-        if not globals().__contains__('MULT_ASTEROID_64'):
-            raise NameError("Texture MULT_ASTEROID_64 is missing!"
-                            "\nCheck file Texture.py for MULT_ASTEROID_64 assigment. ")
-
-        if not globals().__contains__('MULT_ASTEROID_32'):
-            raise NameError("Texture MULT_ASTEROID_32 is missing!"
-                            "\nCheck file Texture.py for MULT_ASTEROID_32 assigment. ")
-
-        size_x, size_y = self.image.get_size()
-        if size_x > 128:
-            aster = MULT_ASTEROID_64
-            name = 'MULT_ASTEROID_64'
-        else:
-            aster = MULT_ASTEROID_32
-            name = 'MULT_ASTEROID_32'
-
-        length = len(aster) - 1
-        for r in range(8 if size_x > 255 else 6):
-            Debris.containers = self.gl.All
-            element = randint(0, length)
-            Debris.image = aster[element]
-            Debris(asteroid_name_=name + '[' + str(element) + ']',
-                   pos_=self.rect.center, gl_=self.gl,
-                   blend_=0, timing_=16, layer_=-2)
-
     def explode(self) -> None:
-        # This is done on the server side
-        ...
+        # Add fire particles effect
+        self.add_particle()
+        self.kill()
 
     def hit(self, player_=None, damage_: int = 0) -> None:
+        """
+        Asteroid hit by a laser
+        """
 
-        self.life -= damage_
+        if hasattr(self, 'life'):
+            self.life -= damage_
+        else:
+            # object already killed
+            """
+            print(self.id_ if hasattr(self, 'id_') else 'no self.id_')
+            if hasattr(self, 'show_attributes'):
+                self.show_attributes()
+            raise AttributeError('self is missing attribute life, type %s alive %s group %s id %s'
+                                 % (type(self), self.alive(), self.groups(), id(self)))
+            """
+            return
 
         if self.life < 1:
-            if player_ is not None:
-                player_.update_score(self.points)
-                self.create_gems(player_)
-            self.make_debris()
+            # make sure the asteroid belongs to a group
+            # otherwise the asteroid has been delete prior accessing
+            # the method (e.g parallel delete from a different thread)
+            if self.alive():    
+                if player_ is not None:
+                    player_.update_score(self.points)
+
+                    # Create gems only for two asteroid types
+                    if self.surface in ('DEIMOS', 'EPIMET'):
+                        self.create_gems(player_)
+            # self.make_debris()   # this is done by the server
             self.explode()
         else:
-            self.blend_()
+            if self.surface != 'MAJOR_ASTEROID':
+                self.blend_()
+        ...
 
     def collide(self, player_=None, damage_: int = 0) -> None:
 
         if not globals().__contains__('IMPACT1'):
             raise NameError("Sound IMPACT1 is missing!"
                             "\nCheck file Sounds.py for IMPACT1 assigment. ")
-        self.life -= damage_
-        # Play the sound locally only, the server is doing the same
+
+        if hasattr(self, 'life'):
+            self.life -= damage_
+        else:
+            # object already killed
+            """
+            print(self.id_ if hasattr(self, 'id_') else 'no self.id_')
+            if hasattr(self, 'show_attributes'):
+                self.show_attributes()
+            raise AttributeError('self is missing attribute life, type %s alive %s group %s'
+                                 % (type(self), self.alive(), self.groups()))
+            """
+            return
+        # Play the sound locally only, 
         self.gl.MIXER.play(sound_=IMPACT1, loop_=False, priority_=0,
                            volume_=1.0, fade_out_ms=0, panning_=True,
                            name_='IMPACT1', x_=self.rect.centerx,
                            object_id_=id(IMPACT1),
                            screenrect_=self.gl.SCREENRECT)
-
+        
         if self.life < 1:
             if player_ is not None:
                 player_.update_score(self.points)
-            self.make_debris()
+            # self.make_debris()   # this is done on the server
+            for _ in range(3):
+                self.add_particle()
             self.kill()
         ...
 
     def update(self) -> None:
-        ...
+        if self.dt > self.timing:
+            if hasattr(self, 'life'):
+                if self.life < 1:
+                    self.kill()
+            self.dt = 0
+            
+        else:
+            self.dt += self.gl.TIME_PASSED_SECONDS
 
 
 class MirroredPlayer1Class(pygame.sprite.Sprite):
 
+    containers = None
+
     def __init__(self, sprite_):
+        
         # No sprite group assignment in the constructor
-        pygame.sprite.Sprite.__init__(self)
+        pygame.sprite.Sprite.__init__(self, self.containers)
+
+        # GL.NetGroupAll.change_layer(self, sprite_.layer)
+
         self.rect = sprite_.rect
         self.image = sprite_.image
+        self.mask = pygame.mask.from_surface(self.image)
         self.image_copy = sprite_.image.copy()
         self.blend = sprite_.blend
         self.layer = sprite_.layer
@@ -456,6 +778,16 @@ class MirroredPlayer1Class(pygame.sprite.Sprite):
         self.surface = sprite_.surface
         self.damage = sprite_.damage
         self.gl = GL
+        self.dt = 0
+        self.timing = 15  # 60 fps
+
+    def show_attributes(self) -> None:
+        if hasattr(self, '__dict__'):
+            print('\n\n')
+            for attr, value in self.__dict__.items():
+                print('Sprite id %s has attribute : %s %s' % (id(self), attr, value))
+        else:
+            raise AttributeError('Sprite id %s does not have attribute __dict__.' % id(self))
 
     def disruption(self) -> None:
 
@@ -469,20 +801,31 @@ class MirroredPlayer1Class(pygame.sprite.Sprite):
         self.image.blit(DISRUPTION[index], (0, 0), special_flags=pygame.BLEND_RGB_ADD)
 
     def update(self) -> None:
-        if self.image is None:
-            raise ValueError('Cannot copy() NoneType.')
-        self.image = self.image_copy.copy()
-        self.disruption()
-        ...
+
+        if self.dt > self.timing:
+            
+            self.image = self.image_copy.copy()
+            self.disruption()
+            ...
+            self.dt = 0
+            
+        else:
+            self.dt += self.gl.TIME_PASSED_SECONDS
 
 
 class MirroredTransportClass(pygame.sprite.Sprite):
 
+    containers = None
+
     def __init__(self, sprite_):
         # No sprite group assignment in the constructor
-        pygame.sprite.Sprite.__init__(self)
+        pygame.sprite.Sprite.__init__(self, self.containers)
+
+        # GL.NetGroupAll.change_layer(self, sprite_.layer)
+
         self.rect = sprite_.rect
         self.image = sprite_.image
+        self.mask = pygame.mask.from_surface(self.image)
         self.image_copy = self.image.copy()
         self.blend = sprite_.blend
         self.layer = sprite_.layer
@@ -494,7 +837,10 @@ class MirroredTransportClass(pygame.sprite.Sprite):
         self.surface = sprite_.surface
         self.gl = GL
         self.index = 0
+        self.dt = 0
+        self.fxdt = 0
         self.max_life = 5000
+        self.half_life = self.max_life >> 1
         assert hasattr(sprite_, 'life'), \
             "MirroredTransportClass broadcast object is missing <life> attribute."
         assert hasattr(sprite_, 'damage'), \
@@ -502,21 +848,36 @@ class MirroredTransportClass(pygame.sprite.Sprite):
         self.life = sprite_.life
         self.damage = sprite_.damage
         self.vertex_array = []
+        half = self.gl.SCREENRECT.w >> 1
+        self.safe_zone = pygame.Rect(half - 200, half, 400, self.gl.SCREENRECT.bottom - half)
+        self.timing = 15  # 60 FPS
+
+    def show_attributes(self) -> None:
+        if hasattr(self, '__dict__'):
+            print('\n\n')
+            for attr, value in self.__dict__.items():
+                print('Sprite id %s has attribute : %s %s' % (id(self), attr, value))
+        else:
+            raise AttributeError('Sprite id %s does not have attribute __dict__.' % id(self))
 
     def display_fire_particle_fx(self) -> None:
         # Display fire particles when the player has taken bad hits
         # Use the additive blend mode.
+        if self.fxdt > self.timing - 8:     # 8 ms
+            for p_ in self.vertex_array:
 
-        for p_ in self.vertex_array:
+                # queue the particle in the vector direction
+                p_.rect.move_ip(p_.vector)
+                p_.image = p_.images[p_.index]
+                if p_.index > len(p_.images) - 2:
+                    p_.kill()
+                    self.vertex_array.remove(p_)
 
-            # queue the particle in the vector direction
-            p_.rect.move_ip(p_.vector)
-            p_.image = p_.images[p_.index]
-            if p_.index > len(p_.images) - 2:
-                p_.kill()
-                self.vertex_array.remove(p_)
-
-            p_.index += 1
+                p_.index += 1
+            self.fxdt = 0
+            
+        else:
+            self.fxdt += self.gl.TIME_PASSED_SECONDS
 
     def fire_particles_fx(self,
                           position_,  # particle starting location (tuple or pygame.math.Vector2)
@@ -533,7 +894,7 @@ class MirroredTransportClass(pygame.sprite.Sprite):
         # Create fire particles when the aircraft is disintegrating
         sprite_ = pygame.sprite.Sprite()
         self.gl.All.add(sprite_)
-        # self.gl.FIRE_PARTICLES_FX.add(sprite_)
+        # self.gl.FIRE_PARTICLES_FX.add(sprite__)
         # assign the particle to a specific layer
         if isinstance(self.gl.All, pygame.sprite.LayeredUpdates):
             self.gl.All.change_layer(sprite_, layer_)
@@ -551,14 +912,30 @@ class MirroredTransportClass(pygame.sprite.Sprite):
 
     def update(self) -> None:
 
+        # Line below can be skipped
+        # self.rect.clamp_ip(self.safe_zone)
+
         self.image = self.image_copy.copy()
 
-        if self.life < (self.max_life // 2):
-            position = pygame.math.Vector2(randint(-50, 50), randint(-100, 100))
-            self.fire_particles_fx(position_=position + pygame.math.Vector2(self.rect.center),
-                                   vector_=pygame.math.Vector2(uniform(-1, 1), uniform(+1, +3)),
-                                   images_=FIRE_PARTICLES,
-                                   layer_=0, blend_=pygame.BLEND_RGB_ADD)
+        # in the 16ms area (60 FPS)
+        if self.dt > self.timing:
+
+            if self.life < self.half_life:
+                position = pygame.math.Vector2(randint(-50, 50), randint(-100, 100))
+                self.fire_particles_fx(position_=position + pygame.math.Vector2(self.rect.center),
+                                       vector_=pygame.math.Vector2(uniform(-1, 1), uniform(+1, +3)),
+                                       images_=FIRE_PARTICLES,
+                                       layer_=0, blend_=pygame.BLEND_RGB_ADD)
+            elif self.life < 1:
+                self.kill()
+
+            self.dt = 0
+
+        else:
+            self.dt += self.gl.TIME_PASSED_SECONDS
+
+        # outside the 60 FPS area.
+        # Below code processed every frames.
         if self.impact:
             self.image.blit(DISRUPTION_ORG[self.index % len(DISRUPTION_ORG) - 1],
                             (0, 0), special_flags=pygame.BLEND_RGB_ADD)
@@ -670,50 +1047,55 @@ class SpriteServer(threading.Thread):
                     self.gl.SPRITE_CLIENT_STOP = True
                     self.gl.STOP_GAME = True
 
-                # Clearing the transport group is essential in order
-                # to make sure that the transport sprite is still alive on the server side.
-                # When the transport sprite is killed on the server side, a network message is broadcast
-                # to the client(s) with the latest attributes values (e.g life value) and will remain
-                # in the GL.TRANSPORT regardless of its status on the server.
-                # We could check the transport's life points to determine if it is still alive or not and implement
-                # a method to remove the sprite from the group, but the simplest way is to assume that if there
-                # is no more coming transport network messages, it must be because it has been already killed.
-                # The down side would be to see the sprite flickering when the connection is lost between the server
-                # and the client.
-                # GL.TRANSPORT = pygame.sprite.GroupSingle()
+                # if data is not None:
+                #    print('\n[-]packet size %s %s' % (len(data), len(data) * 56))
 
-                # Clear the group asteroids. (same principle than above)
-                self.gl.ASTEROID = pygame.sprite.Group()
+                delete_group = set()
+                insert_group = set()
+                sprite_group = {}
+                alpha = {}
 
                 if isinstance(data, list):
-
-                    data_set = set()
 
                     # Goes through the list of elements/sprites
                     for sprite_ in data:
 
-                        # if not f.closed:
-                        #     f.write('\n' + str(sprite_.frame) + ' ' +
-                        #     str(sprite_.sound_name) if hasattr(sprite_, 'sound_name')
-                        #     else '')
+                        if isinstance(sprite_, set):
+                            self.gl.GROUP_ALIVE = sprite_
+                            continue
+
+                        """
+                        # LOGGING 
+                        if not f.closed:
+                            f.write('\n' + str(sprite_.frame) +
+                                    ' sizeof ' + str(sys.getsizeof(sprite_)) +
+                                    ' data_length ' + str(len(data)) +
+                                    ' id: ' + str(sprite_.id_) +
+                                    ' name ' + str(sprite_.surface) if hasattr(sprite_, 'surface') else '' +
+                                    ' life ' + str(sprite_.life) if hasattr(sprite_, 'life') else '')
+                        """
 
                         # extract the frame number (server frame number)
                         # As we are iterating over all sprites
                         # self.gl.REMOTE_FRAME value will be equal to the
-                        # sprite_.frame value of the last iterated element.
+                        # sprite__.frame value of the last iterated element.
                         self.gl.REMOTE_FRAME = sprite_.frame
 
-                        # Check if sprite is an event.
+                        # EVENT
                         # event does not have all attributes 
                         if hasattr(sprite_, 'event'):
 
-                            # Process broadcasted event
+                            # Process broadcast event
                             # Trigger next frame
                             if sprite_.event.isSet():
                                 self.gl.NEXT_FRAME.set()
                             else:
                                 self.gl.NEXT_FRAME.clear()
 
+                            # Avoiding below code
+                            continue
+
+                        # SOUND
                         elif hasattr(sprite_, 'sound_name'):
                             try:
 
@@ -729,14 +1111,25 @@ class SpriteServer(threading.Thread):
                                                name_=sprite_.sound_name, x_=sprite_.rect.centerx,
                                                object_id_=id(sound),
                                                screenrect_=self.gl.SCREENRECT)
-                            # data.remove(sprite_)
-                            
+
+                            # Avoiding below code
+                            continue
+
+                        # DELETE
+                        # gather all delete sprite ids to process at the end of the iteration
+                        elif hasattr(sprite_, 'to_delete'):
+                            # to_delete{'1235456': DEIMOS, '54545465': DEIMOS .....}
+                            for obj_id, surface_ in sprite_.to_delete.items():
+                                delete_group.add(obj_id)
+                                alpha[obj_id] = surface_
+
+                        # SPRITES
                         else:
 
                             try:
-                                
+
                                 sprite_.image = eval(sprite_.surface)  # load surface
-                                
+
                             except NameError:
                                 # A texture is not present on the client side,
                                 # it is worth checking into the Asset directory to make
@@ -755,20 +1148,31 @@ class SpriteServer(threading.Thread):
                             # the buffer transformation instead (for best performance).
                             if hasattr(sprite_, 'rotation'):
                                 if sprite_.rotation is not None and sprite_.rotation != 0:
-                                    if sprite_.id_ in self.gl.XTRANS_ROTATION.keys():
 
-                                        sprite_.image = self.gl.XTRANS_ROTATION[sprite_.id_]
+                                    if sprite_.id_ in self.gl.XTRANS_ROTATION.keys():
+                                        cache_image_, cache_rotation_ = self.gl.XTRANS_ROTATION[sprite_.id_]
+
+                                        if cache_rotation_ == sprite_.rotation:
+                                            sprite_.image = self.gl.XTRANS_ROTATION[sprite_.id_]
+
+                                        else:
+                                            sprite_.image = pygame.transform.rotate(
+                                                sprite_.image, sprite_.rotation)
+                                            self.gl.XTRANS_ROTATION.update(
+                                                {sprite_.id_: (sprite_.image, sprite_.rotation)})
+
                                     else:
                                         sprite_.image = pygame.transform.rotate(
                                             sprite_.image, sprite_.rotation)
-
-                                        self.gl.XTRANS_ROTATION.update({sprite_.id_: sprite_.image})
+                                        self.gl.XTRANS_ROTATION.update(
+                                            {sprite_.id_: (sprite_.image, sprite_.rotation)})
 
                             if hasattr(sprite_, 'scale'):
                                 if sprite_.scale != 1:
                                     if sprite_.id_ in self.gl.XTRANS_SCALE.keys():
 
                                         sprite_.image = self.gl.XTRANS_SCALE[sprite_.id_]
+
                                     else:
                                         sprite_.image = pygame.transform.scale(sprite_.image, (
                                             int(sprite_.image.get_size()[0] * sprite_.scale),
@@ -776,116 +1180,102 @@ class SpriteServer(threading.Thread):
 
                                         self.gl.XTRANS_SCALE.update({sprite_.id_: sprite_.image})
 
-                            s = None
-                            # Add the sprite into the MirroredAsteroidClass group only.
-                            # self.gl.ASTEROID group is null before the server broadcast
-                            # Use the MirroredAsteroidClass group for collision detection mainly.
+                            # Add the sprite into self.gl.ASTEROID with the class MirroredAsteroidClass.
+                            # GL.ASTEROID group is used for collision detection purpose only.
                             # MirroredAsteroidClass class has also some methods that can be triggered from client side
                             # such as queue and debris methods for localised special effects.
                             # The asteroid life points variable is broadcast from the server every
                             # frames, and should be considered as read only variable on the client side.
-                            if sprite_.surface in ('DEIMOS', 'EPIMET'):
-                                if sprite_.life > 0:
-                                    # todo create a __new___ method for class MirroredAsteroidClass and a python
-                                    #  inventory list to monitor every instances.
-                                    s = MirroredAsteroidClass(sprite_)
-                                    self.gl.ASTEROID.add(s)
-                                else:
-                                    ...
 
-                            # Find Player 1 message and create a local instance (if still alive)
+                            # ASTEROID (catch only asteroid sprite with names below)
+                            if sprite_.surface.split('[')[0] in (
+                                    'DEIMOS', 'EPIMET', 'MULT_ASTEROID_32',
+                                    'MULT_ASTEROID_64', 'MAJOR_ASTEROID'):
+
+                                sprite_found = None
+                                for spr_ in self.gl.ASTEROID:
+                                    if sprite_.id_ == spr_.id_:
+                                        sprite_found = spr_
+                                        break
+                                # Sprite not found in self.gl.ASTEROID
+                                if sprite_found is None:
+                                    # todo create a __new___ method for class MirroredAsteroidClass and a python
+                                    MirroredAsteroidClass.containers = self.gl.ASTEROID
+                                    sprite_group[sprite_.id_] = MirroredAsteroidClass(sprite_)
+                                    insert_group.add(sprite_.id_)
+
+                                # Asteroid sprite already exist in GL.ASTEROID group
+                                # UPDATING ALL ATTRIBUTES
+                                # todo check if necessary to update all attrs
+                                else:
+                                    sprite_found.frame = sprite_.frame
+                                    sprite_found.rect = sprite_.rect
+                                    sprite_found.surface = sprite_.surface
+                                    sprite_found.image = sprite_.image
+                                    sprite_found.blend = sprite_.blend
+                                    sprite_found.layer = sprite_.layer
+                                    sprite_found.life = sprite_.life
+                                    sprite_found.damage = sprite_.damage
+
+                            # PLAYER1
                             elif sprite_.surface == 'P1_SURFACE':
-                                if sprite_.life > 0:
-                                    s = MirroredPlayer1Class(sprite_)
+
+                                    MirroredPlayer1Class.containers = self.gl.P1
+                                    sprite_group[sprite_.id_] = MirroredPlayer1Class(sprite_)
+                                    insert_group.add(sprite_.id_)
                                     # The GroupSingle container only holds a single Sprite.
                                     # When a new Sprite is added, the old one is removed.
                                     # -> update the group with latest sprite changes. GL.P1 is used for
                                     # collision detection
-                                    self.gl.P1.add(s)
-                                else:
-                                    # Removes all Sprites from this Group.
-                                    self.gl.P1.empty()
 
+
+                            # TRANSPORT
                             # find the MirroredTransportClass message and create a local instance (if still alive)
                             elif sprite_.surface == 'TRANSPORT':
-                                if sprite_.life > 0:
-                                    s = MirroredTransportClass(sprite_)
+
+                                    MirroredTransportClass.containers = self.gl.TRANSPORT
+                                    sprite_group[sprite_.id_] = MirroredTransportClass(sprite_)
+                                    insert_group.add(sprite_.id_)
                                     # The GroupSingle container only holds a single Sprite.
                                     # When a new Sprite is added, the old one is removed.
                                     # -> update the group with latest sprite changes.
                                     # GL.TRANSPORT is used for collision detection
-                                    self.gl.TRANSPORT.add(s)
-                                else:
-                                    # Removes all Sprites from this Group.
-                                    self.gl.TRANSPORT.empty()
 
                             else:
-                                # Generic sprite (without methods)
-                                s = pygame.sprite.Sprite()
-                                s.frame = sprite_.frame
-                                s.rect = sprite_.rect
-                                s.surface = sprite_.surface
-                                s.image = sprite_.image
-                                s.blend = sprite_.blend
-                                s.layer = sprite_.layer
-                                s.id_ = sprite_.id_
-                                if hasattr(sprite_, 'life'):
-                                    s.life = sprite_.life
-                                if hasattr(sprite_, 'damage'):
-                                    s.damage = sprite_.damage
 
-                            # Add broadcast sprites to data_set (reset every time a message from server is received).
-                            # data_set contains all sprites sent by the server for a specific frame number.
-                            # The data_set cannot contains duplicates. The id attribute (memory location)
-                            # is used as unique identification number to store sprites in the data_set.
-                            # The element in data set represent all active (alive) sprites display on the
-                            # server side (before server collision detection). 
-                            data_set.add(sprite_.id_)
-                            
-                            # Add the sprite in self.gl.NetGroupAll (if not already in the group) or
-                            # update attributes e.g position, texture.
-                            # NetGroupAll, will be used in the main loop (locally) to display
-                            # all the sprites broadcast from a specific frame number.
-                            # If a sprite is not added to that group, it will be ignored
-                            # and not display on the client side.
+                                # GENERIC
+                                # Generic sprite (without methods).
+                                generic = pygame.sprite.Sprite()
+                                generic.frame = sprite_.frame
+                                generic.rect = sprite_.rect
+                                generic.surface = sprite_.surface
+                                generic.image = sprite_.image
+                                generic.blend = sprite_.blend
+                                generic.layer = sprite_.layer
+                                generic.id_ = sprite_.id_
 
-                            if s is not None:
-                                if len(self.gl.NetGroupAll) > 0:
-                                    has_ = False
-                                    for sprites in self.gl.NetGroupAll:
-                                        if sprites.id_ == s.id_:
-                                            has_ = True
-                                            sprites.rect = s.rect
-                                            sprites.image = sprite_.image
-                                            sprites.frame = sprite_.frame
-                                            if hasattr(sprite_, 'life'):
-                                                sprites.life = sprite_.life
-                                            if hasattr(sprite_, 'impact'):
-                                                sprites.impact = sprite_.impact
-                                            break
+                                sprite_group[sprite_.id_] = generic
+                                insert_group.add(generic.id_)
 
-                                    if not has_:
-                                        self.gl.NetGroupAll.add(s)
+                    to_insert = insert_group - delete_group
+                    self.insert_sprite(to_insert, sprite_group)
+                    # !!! DELETING SPRITE IN PARALLEL MIGHT CAUSE ISSUE
+                    # WHEN USING SPRITE ATTRIBUTES IN THE MAIN LOOP...
+                    self.delete_sprite(delete_group)
 
-                                else:
-                                    self.gl.NetGroupAll.add(s)
+                    # END OF for sprite_ in data:
 
-                    # Compare NetGroupAll group to data_set and delete sprite(s)
-                    # accordingly. Sprites in NetGroupAll and not in data_set will
-                    # be killed and remove from every groups they are belonging to.
-                    # When a sprite is deleted, the transformation/scale buffer associated
-                    # to it will be deleted (using its id).
-                    for spr_ in self.gl.NetGroupAll:
-                        if spr_.id_ not in data_set:
-                            spr_.kill()
-                            if spr_.id_ in self.gl.XTRANS_SCALE.keys():
-                                self.gl.XTRANS_SCALE.pop(spr_.id_)
-                            if spr_.id_ in self.gl.XTRANS_ROTATION.keys():
-                                self.gl.XTRANS_ROTATION.pop(spr_.id_)
-
-                # Reload original texture
-                # for pair in modified_surface.items():
-                #    globals()[pair[0]] = pair[1]
+                    """
+                    # LOGGING
+                    if not f.closed:
+                        f.write('\n' + str(self.gl.FRAME) +
+                                '\ninsert_group ' + str(to_insert) +
+                                '\nsprite_group ' + str(sprite_group) +
+                                '\ndelete_group ' + str(delete_group) +
+                                '\nalpha        ' + str(alpha) +
+                                '\nNetGroupAll ' + str(list((spr.life if hasattr(spr, 'life')
+                                                             else '') for spr in self.gl.NetGroupAll.sprites())))
+                    """
 
                 buffer = b''
                 break
@@ -893,6 +1283,67 @@ class SpriteServer(threading.Thread):
             # pygame.time.wait(1)
 
         print('\n[-]SpriteServer is now terminated...')
+
+    def insert_sprite(self, insert_group_, sprite_group_) -> None:
+        # INSERT
+        for id__ in insert_group_:
+            for id_, sprite_ in sprite_group_.items():
+                if id__ == id_:
+                    has_ = False
+                    for spr_ in self.gl.NetGroupAll:
+                        # sprite exists, updating rect and attributes
+                        if spr_.id_ == sprite_.id_:
+                            has_ = True
+                            spr_.rect = sprite_.rect
+                            spr_.image = sprite_.image
+                            spr_.frame = sprite_.frame
+                            if hasattr(sprite_, 'life'):
+                                spr_.life = sprite_.life
+                            if hasattr(sprite_, 'impact'):
+                                spr_.impact = sprite_.impact
+                            if hasattr(sprite_, 'surface'):
+                                spr_.surface = sprite_.surface
+                            if hasattr(sprite_, 'blend'):
+                                spr_.blend = sprite_.blend
+                            if hasattr(sprite_, 'layer'):
+                                spr_.layer = sprite_.layer
+                            if hasattr(sprite_, 'id_'):
+                                spr_.id_ = sprite_.id_
+
+                            break
+                        # sprite does not exist, insert sprite
+                    if not has_:
+                        self.gl.NetGroupAll.add(sprite_)
+                        # !! Assign the sprite to the correct layer
+                        # LayeredUpdates.change_layer(sprite, new_layer): return None
+                        self.gl.NetGroupAll.change_layer(sprite_, sprite_.layer)
+
+    def delete_sprite(self, delete_group_) -> None:
+        # DELETE
+        # NOT RECOMMENDED TO DELETE SPRITE IN PARALLEL OF GAME LOOP
+        # IMPLEMENT BELOW CODE FROM MAIN LOOP
+        for obj_id in delete_group_:
+
+            for spr__ in self.gl.NetGroupAll:
+
+                if obj_id == spr__.id_:
+
+                    spr__.kill()
+                    spr__.remove(self.gl.All, self.gl.NetGroupAll, self.gl.ASTEROID)
+
+                    if spr__.surface == 'TRANSPORT':
+                        self.gl.TRANSPORT.empty()
+
+                    if spr__.surface == 'P1_SURFACE':
+                        self.gl.P1.empty()
+
+                    if obj_id in GL.XTRANS_SCALE.keys():
+                        self.gl.XTRANS_SCALE.pop(spr__.id_)
+
+                    if obj_id in GL.XTRANS_ROTATION.keys():
+                        self.gl.XTRANS_ROTATION.pop(spr__.id_)
+
+                    break
 
 
 # function used for terminating SERVER/ CLIENT threads listening (blocking socket)
@@ -914,33 +1365,35 @@ def force_quit(host_: str, port_: int) -> None:
 
 def collision_detection():
 
-    transport = None
+    transport_ = None
     player1 = None
 
     if GL.TRANSPORT is not None and \
             isinstance(GL.TRANSPORT, pygame.sprite.GroupSingle):
         if len(GL.TRANSPORT) > 0:
-            transport = GL.TRANSPORT.sprites()[0]
+            transport_ = GL.TRANSPORT.sprites()[0]
 
         # Use collision mask for collision detection
         # It is compulsory to have sprite textures with alpha transparency information
         # in order to check for collision otherwise the collision will be ignored.
         # Check collisions between transport and asteroids
 
-        if transport is not None:
+        if transport_ is not None:
 
-            if transport.alive():
+            if transport_.alive():
 
-                collision = pygame.sprite.spritecollideany(
-                    transport, GL.ASTEROID, collided=pygame.sprite.collide_mask)
+                collision = pygame.sprite.spritecollideany(transport_,
+                                                           GL.ASTEROID, collided=pygame.sprite.collide_mask)
 
                 if collision is not None:
-                    if hasattr(collision, 'collide'):
-                        collision.collide(None, transport.damage)
-                    else:
-                        print(type(collision))
-                        raise AttributeError
+                    if collision in GL.ASTEROID:
+                        if hasattr(collision, 'collide'):
+                            collision.collide(None, transport_.damage)
+                        else:
+                            print(type(collision))
+                            raise AttributeError
 
+                ...
     if GL.P1 is not None and \
             isinstance(GL.P1, pygame.sprite.GroupSingle):
         if len(GL.P1) > 0:
@@ -956,28 +1409,37 @@ def collision_detection():
         # Check player 1 shots collision with asteroids
         if player1 is not None and player1.alive():
             for shots, asteroids in pygame.sprite.groupcollide(
-                    p1_shots, GL.ASTEROID, 0, 0).items():  # ,collided=pygame.sprite.collide_mask).items():
+                    p1_shots, GL.ASTEROID, 1, 0).items():  # ,collided=pygame.sprite.collide_mask).items():
                 if asteroids is not None:
                     for aster in asteroids:
-                        if hasattr(aster, 'hit'):
-                            aster.hit(None, 100)  # -> check if asteroid explode otherwise blend the asteroid
+                        if aster in GL.ASTEROID:
+                            if hasattr(aster, 'hit'):
+                                aster.hit(None, 100)  # -> check if asteroid explode otherwise blend the asteroid
 
     # Use collision mask for collision detection
     # Check collision between Player 2 and asteroids
     if P2 is not None and P2.alive():
         collision = pygame.sprite.spritecollideany(P2, GL.ASTEROID, collided=pygame.sprite.collide_mask)
         if collision is not None:
-            P2.collide(collision.damage)    # -> send damage to player 2
-            collision.collide(P2, P2.damage)
+            if collision in GL.ASTEROID:
+                if hasattr(collision, 'damage'):
+                    P2.collide(collision.damage)    # -> send damage to player 2
+                    collision.collide(P2, P2.damage)
 
         # check collision between player 2 shots and asteroids
         # delete the sprite sprite after collision.
-        collision = pygame.sprite.groupcollide(GL.PLAYER_SHOTS, GL.ASTEROID, 1, 0)
-        if collision is not None:
-            for asteroid in collision.values():
-                for aster in asteroid:
+        # pygame.sprite.groupcollide(groupa, groupb, dokilla, dokillb): return dict
+
+        for shots, asteroids in pygame.sprite.groupcollide(GL.PLAYER_SHOTS, GL.ASTEROID, 1, 0).items():
+            if asteroids is not None:
+                for aster in asteroids:
                     if hasattr(aster, 'hit'):
                         aster.hit(P2, 100)  # -> check if asteroid explode otherwise blend the asteroid
+                        new_rect = shots.rect.clamp(aster.rect)
+                        # shots.collide(rect_=new_rect, object_=aster, damage_=100)
+                    else:
+                        print(type(aster))
+                        raise AttributeError
 
 
 if __name__ == '__main__':
@@ -989,6 +1451,11 @@ if __name__ == '__main__':
     CLIENT = '127.0.0.1'
     # SERVER = '192.168.1.106'
     # CLIENT = '192.168.1.106'
+
+    position = (0, 0)
+    DRIVER = 'windib'  # 'windib' | 'directx'
+    os.environ['SDL_VIDEODRIVER'] = DRIVER
+    os.environ['SDL_VIDEO_WINDOW_POS'] = str(position[0]) + "," + str(position[1])
 
     GL = GL.__copy__(GL())
 
@@ -1004,10 +1471,6 @@ if __name__ == '__main__':
     else:
         joystick = None
 
-    from Textures import *
-    from Sounds import BLUE_LASER_SOUND, RED_LASER_SOUND, EXPLOSION_SOUND, IMPACT, IMPACT1
-    from Asteroids import Debris
-
     # background vector
     vector1 = pygame.math.Vector2(x=0, y=0)
     vector2 = pygame.math.Vector2(x=0, y=-1024)
@@ -1015,7 +1478,7 @@ if __name__ == '__main__':
     # ********************************************************************
     # NETWORK SERVER / CLIENT
 
-    # SpriteServer -> receive multiplayer(s) positions
+    # SpriteServer -> receive multi-player(s) positions
     # 1) Start the Server to receive multiplayer(s) position(s)
     # If no connection is made, the thread will remains listening/running
     # in the background, except if an error is raised.
@@ -1047,31 +1510,48 @@ if __name__ == '__main__':
 
     Shot.images = RED_LASER
     Shot.containers = GL.All, GL.PLAYER_SHOTS
+    Shot.mask = pygame.mask.from_surface(RED_LASER)
+
     Explosion.containers = GL.All
     AfterBurner.containers = GL.All
 
     DisplayScore.containers = GL.All
     DisplayScore.images = pygame.Surface((10, 10))
-    GL.P2_SCORE = DisplayScore(gl_=GL, timing_=15)
+    GL.P2_SCORE = DisplayScore(gl_=GL, timing_=8)
 
     MakeGems.containers = GL.All
 
-    P2 = Player2(GL, 15, (screen.get_size()[0] // 2, screen.get_size()[1] // 2))
-
-    life_bar = HorizontalBar(start_color=pygame.Color(0, 7, 255, 0),
-                             end_color=pygame.Color(120, 255, 255, 0),
-                             max_=P2.max_life, min_=0,
-                             value_=P2.life,
-                             start_color_vector=(0, 1, 0), end_color_vector=(0, 0, 0), alpha=False, height=32, xx=200,
-                             scan=True)
+    P2 = Player2(GL, 0, (screen.get_size()[0] // 2 + 220, SCREENRECT.h))
 
     transport_life_bar = HorizontalBar(start_color=pygame.Color(255, 7, 15, 0),
                                        end_color=pygame.Color(12, 12, 255, 0),
                                        max_=5000, min_=0,
                                        value_=5000,
-                                       start_color_vector=(0, 1, 0), end_color_vector=(0, 0, 0), alpha=False, height=32,
-                                       xx=200,
+                                       start_color_vector=(0, 0, 0),
+                                       end_color_vector=(0, 0, 0),
+                                       alpha=False, height=32,
+                                       xx=180,
                                        scan=True)
+    life = transport_life_bar.display_gradient()
+    w, h = life.get_size()
+    surf = pygame.Surface((w, h)).convert()
+    surf.fill((0, 0, 0, 0))
+
+    ShowLifeBar.containers = GL.All
+    ShowLifeBar(gl_=GL, player_=P2, left_gradient_=pygame.Color(0, 7, 255, 0),
+                right_gradient=pygame.Color(120, 255, 255, 0), pos_=(10, 10), timing_=8, scan_=True)
+
+    PlayerLost.containers = GL.All
+    PlayerLost.DIALOGBOX_READOUT_RED = DIALOGBOX_READOUT_RED
+    PlayerLost.SKULL = SKULL
+    font_ = freetype.Font('Assets\\Fonts\\Gtek Technology.ttf', size=14)
+    ARCADE_FONT = freetype.Font(os.path.join('Assets\\Fonts\\', 'ARCADE_R.ttf'), size=9)
+    ARCADE_FONT.antialiased = True
+
+    LOST = PlayerLost(gl_=GL, font_=font_, image_=FINAL_MISSION, layer_=1)
+    WIN = None
+
+    GL.All.remove(LOST)
 
     GL.TIME_PASSED_SECONDS = 0
 
@@ -1082,8 +1562,57 @@ if __name__ == '__main__':
     GL.FRAME = 0
 
     f = open('P2_log.txt', 'w')
+    text_size = 120
+    half_frame = 0
+
+    pygame.mixer.music.load('Assets\\MUSIC_1.mp3')
+    pygame.mixer.music.play()
+    pygame.mixer.music.set_volume(0.5)
+
+    # DIALOGBOX
+    FRAMEBORDER.blit(FRAMESURFACE, (10, 15))
+    DIALOG = FRAMEBORDER
+
+    DialogBox.containers = GL.All
+    DialogBox.images = DIALOG
+    DialogBox.character = NAMIKO
+    DialogBox.voice_modulation = VOICE_MODULATION
+    DialogBox.readout = DIALOGBOX_READOUT
+    FONT = freetype.Font('C:\\Windows\\Fonts\\Arial.ttf')
+    FONT.antialiased = False
+    DialogBox.FONT = FONT
+    DialogBox.text = ["Protect the transport and reach out ", "Altera the green planet outside the", "asteroid belt.",
+                      "There are huge asteroids ahead, focus ", "and dodge them carefully.", "Have fun and good luck.",
+                      " ", "Over and out!", "Masako"]
+    im = pygame.image.load("Assets\\icon_glareFx_blue.png").convert()
+    DialogBox.scan_image = pygame.image.load("Assets\\icon_glareFx_blue.png").convert()
+    DialogBox.scan_image.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+
+    TIME_PASSED_SECONDS = 0
+    FRAME = 0
+    GL.FRAME = FRAME
+
+    masako = DialogBox(gl_=GL, location_=(-DIALOG.get_width(), 150),
+                       speed_=0, layer_=0, voice_=True, scan_=True, start_=0, direction_='RIGHT',
+                       text_color_=pygame.Color(149, 119, 236, 245), fadein_=500, fadeout_=1000)
+
+    cobra = pygame.image.load('Assets\\Cobra.png').convert()
+    cobra.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+    cobra = pygame.transform.smoothscale(cobra, (100, 170))
+    DialogBox.character = [cobra, cobra]
+    DialogBox.text = ["Don't worry, it won't take long", "before I wreck everything.", " "]
+    DialogBox.images = pygame.transform.smoothscale(DIALOG, (400, 200))
+    DialogBox.scan_image = pygame.image.load("Assets\\icon_glareFx_red.png").convert()
+    DialogBox.scan_image.set_colorkey((0, 0, 0, 0), pygame.RLEACCEL)
+
+    cob = DialogBox(gl_=GL, location_=(SCREENRECT.w + DialogBox.images.get_width(), 650),
+                    speed_=0, layer_=-3, voice_=True, scan_=True, start_=500, direction_='LEFT',
+                    text_color_=pygame.Color(249, 254, 56, 245), fadein_=500, fadeout_=1100)
 
     GL.MIXER = SoundControl(30)
+
+    # transport hud 
+    TRANS_HUD = LIFE_HUD.copy()
 
     while not GL.STOP_GAME:
 
@@ -1156,6 +1685,9 @@ if __name__ == '__main__':
             if keys[pygame.K_ESCAPE]:
                 GL.STOP_GAME = True
 
+            if keys[pygame.K_F8]:
+                pygame.image.save(screen, 'P2_screenshot.png')
+
             if event.type == pygame.MOUSEMOTION:
                 GL.MOUSE_POS = pygame.math.Vector2(event.pos)
             
@@ -1167,30 +1699,20 @@ if __name__ == '__main__':
 
         GL.All.draw(screen)
 
+        # Update the sound Controller
+        GL.MIXER.update()
+
+        collision_detection()
+
         # Authorize Player 2 to send data to the server
         # Allowing to send only one set of data every frame.
         # The clear method is used in the class SpriteClient
         # right after receiving the Event
         GL.SIGNAL.set()
 
-        # Update the sound Controller
-        GL.MIXER.update()
-
-        collision_detection()
-
-        GL.TIME_PASSED_SECONDS = clock.tick(70)
-        GL.SPEED_FACTOR = GL.TIME_PASSED_SECONDS / 1000
-        GL.FPS.append(clock.get_fps())
-
         # dust particles (show on the top of all other sprites)
         if len(COSMIC_DUST_ARRAY) > 0:
             display_dust(GL)
-
-        if P2.life > 1:
-            life_bar.VALUE = int(P2.life)
-            life = life_bar.display_gradient()
-            screen.blit(life, (10, 10), special_flags=0)
-            screen.blit(life_bar.display_value(), (50, 10))
 
         if GL.TRANSPORT is not None and \
                 isinstance(GL.TRANSPORT, pygame.sprite.GroupSingle):
@@ -1198,11 +1720,30 @@ if __name__ == '__main__':
                 transport = GL.TRANSPORT.sprites()[0]
 
                 if transport.alive():
-                    if transport.life > 1:
-                        transport_life_bar.VALUE = int(transport.life)
-                        life = transport_life_bar.display_gradient()
-                        screen.blit(life, (SCREENRECT.w // 2 + 100, 10), special_flags=0)
-                        screen.blit(transport_life_bar.display_value(), (SCREENRECT.w // 2 + 150, 10))
+
+                    if hasattr(transport, 'life'):
+                        if transport.life > 1:
+                            transport_life_bar.VALUE = int(transport.life)
+                            life = transport_life_bar.display_gradient()
+                            if life is not None:
+                                TRANS_HUD.blit(surf, (83, 21))
+                                TRANS_HUD.blit(life, (83, 21))
+                                TRANS_HUD.blit(transport_life_bar.display_value(), (84, 29))
+                                screen.blit(TRANS_HUD, (SCREENRECT.w // 2 + 120, 5))
+        if FRAME < 200:
+            if FRAME % 2 == 0:
+                half_frame += 1
+            size__ = max(35, text_size - half_frame if FRAME < text_size else 35)
+
+            rect1 = font_.get_rect("get ready", style=freetype.STYLE_NORMAL,
+                                   size=size__)
+            font_.render_to(screen, ((SCREENRECT.w >> 1) - (rect1.w >> 1), (SCREENRECT.h >> 1)),
+                            "get ready", fgcolor=pygame.Color(255, 244, 78),
+                            size=size__)
+
+        GL.TIME_PASSED_SECONDS = clock.tick(70)
+        GL.SPEED_FACTOR = GL.TIME_PASSED_SECONDS / 1000
+        GL.FPS.append(clock.get_fps())
 
         pygame.display.flip()
 
@@ -1210,11 +1751,42 @@ if __name__ == '__main__':
         GL.FRAME = FRAME
         Broadcast.empty()
 
+        def my_timer():
+            timer = time.time()
+            while time.time() - timer < 5:
+                time.sleep(0.01)
+            GL.All.add(LOST)
+
+        # Check if Player 1 is still alive otherwise display 'mission fail'
+        if not GL.All.has(P2):
+            if not GL.All.has(LOST):
+                t = threading.Thread(target=my_timer, args=())
+                t.start()
+
+        # Delete sprite from GL.NetGroupAll if it doesn't exist on the server side
+        # f.write('\nGROUP_ALIVE ' + str(GL.GROUP_ALIVE))
+        for spr_ in GL.NetGroupAll:
+            if hasattr(spr_, 'id_'):
+                if spr_.id_ not in GL.GROUP_ALIVE:
+                    spr_.remove(GL.All, GL.NetGroupAll, GL.ASTEROID)
+                    if hasattr(spr_, 'surface'):
+                        # Also remove the sprite from its specific group if
+                        # the sprite is the Transport
+                        if spr_.surface == 'TRANSPORT':
+                            GL.TRANSPORT.empty()
+                        # Also remove the sprite from its specific group if
+                        # the sprite is the PLAYER1
+                        if spr_.surface == 'P1_SURFACE':
+                            GL.P1.empty()
+                    # f.write('\nDelete sprite from group alive : '
+                    #         + str(spr_.id_) + ' surface ' + str(spr_.surface))
+
     f.close()
 
     GL.SPRITE_CLIENT_STOP = True
     GL.SPRITE_SERVER_STOP = True
     force_quit(CLIENT, 1024)
+
     import matplotlib.pyplot as plt
 
     plt.title("FPS ")
@@ -1228,4 +1800,5 @@ if __name__ == '__main__':
     plt.plot(GL.BYTES_RECEIVED)
     plt.draw()
     plt.show()
+
     pygame.quit()

@@ -1,6 +1,7 @@
+import math
 import pygame
 from numpy import array
-from random import randint
+from random import randint, uniform
 from Textures import GEM_SPRITES
 from math import cos, sin, atan2
 
@@ -9,6 +10,20 @@ class MakeGems(pygame.sprite.Sprite):
 
     containers = None
     GEM_VALUE = array(list(range(1, 22))) * 22
+    inventory = set()
+
+    def __new__(cls, gl_,
+                player_,
+                object_,
+                ratio_: float = 1.0,
+                timing_: int = 15,
+                offset_: pygame.Rect = None,
+                layer_: int = -1, *args, **kwargs):
+
+        if id(object_) in cls.inventory:
+            return
+        else:
+            return super().__new__(cls, *args, **kwargs)
 
     def __init__(self,
                  gl_,
@@ -64,6 +79,8 @@ class MakeGems(pygame.sprite.Sprite):
 
         # randomly modify the surface orientation
         self.image = pygame.transform.rotate(self.image, randint(0, 360))
+        # todo create all mask and put them into a list prior instantiation
+        self.mask = pygame.mask.from_surface(self.image)
 
         self.ratio = ratio_
 
@@ -74,17 +91,28 @@ class MakeGems(pygame.sprite.Sprite):
             # use player location
             self.rect = self.image.get_rect(center=self.object_.rect.center)
 
-        self.speed = pygame.math.Vector2(0, randint(8, 12))
+        self.speed = pygame.math.Vector2(0, randint(25, 35))
 
         self.dt = 0
         self.theta = 0
         self.blend = 0
+        angle = math.radians(uniform(0, 359))
+        self.vector = pygame.math.Vector2(
+            math.cos(angle) * randint(10, 20),
+            math.sin(angle) * randint(10, 20))
+
+        self.inventory.add(id(object_))
 
     def adjust_vector(self) -> tuple:
         # return a tuple (x:float, y:float); vector direction
         angle_radian = -atan2(self.player.rect.centery - self.rect.centery,
                               self.player.rect.centerx - self.rect.centerx)
         return cos(angle_radian) * self.speed.length(), -sin(angle_radian) * self.speed.length()
+
+    def quit(self) -> None:
+        if id(self.object_) in self.inventory:
+            self.inventory.remove(id(self.object_))
+        self.kill()
 
     def update(self) -> None:
 
@@ -94,26 +122,41 @@ class MakeGems(pygame.sprite.Sprite):
 
                 if self.gl.SCREENRECT.colliderect(self.rect):
 
-                    self.image = pygame.transform.rotozoom(self.image_copy, self.theta, self.ratio)
+                    # self.image = pygame.transform.rotozoom(self.image_copy, self.theta, self.ratio)
+                    self.image = pygame.transform.rotate(self.image_copy, self.theta)
                     self.rect = self.image.get_rect(center=self.rect.center)
 
-                    self.rect.move_ip(self.speed.x, self.speed.y)
+                    # self.rect.move_ip(self.speed.x, self.speed.y)
 
                     # gems follow player
-                    # self.rect.move_ip(self.adjust_vector())
+                    if self.vector.length() < 2:
+                        self.rect.move_ip(self.adjust_vector())
+                    # Gems spread 360 degrees
+                    else:
+                        self.rect.move_ip((self.vector.x, self.vector.y))
+                        self.vector *= 0.95     # deceleration/ reduction
 
                     self.theta += 2
                     self.theta %= 359
 
                 else:
-                    self.kill()
-
-                if self.rect.colliderect(self.player.rect):
+                    
+                    self.quit()
+                    return
+                """
+                if pygame.sprite.collide_mask(self, self.player):
                     self.player.update_score(self.value)
                     self.kill()
-
+                    return
+                """
+                if self.rect.colliderect(self.player):
+                    if hasattr(self.player, 'update_score'):
+                        self.player.update_score(self.value)
+                    self.quit()
+                    return
                 self.dt = 0
-        else:
-            self.kill()
 
-        self.dt += self.gl.TIME_PASSED_SECONDS
+            else:
+                self.dt += self.gl.TIME_PASSED_SECONDS
+        else:
+            self.quit()

@@ -239,23 +239,22 @@ class JoystickServer(threading.Thread):
 
                 else:
                     
-                        # print('data received : ', self.view)
-                        # print('data decoded  : ', pyobject)
+                    # print('data received : ', self.view)
+                    # print('data decoded  : ', pyobject)
 
-                        print('\n')
-                        print('Joystick id %s ' % pyobject.id)
-                        print('Joystick name %s ' % pyobject.name)
-                        print('Joystick axes %s ' % pyobject.axes)
-                        print('Joystick axes_status %s ' % pyobject.axes_status)
-                        print('Joystick button %s ' % pyobject.buttons)
-                        print('Joystick button_status %s ' % pyobject.button_status)
-                        print('Joystick hats %s ' % pyobject.hat)
-                        print('Joystick hats_status %s ' % pyobject.hats_status)
-                        print('Joystick balls %s ' % pyobject.balls)
-                        print('Joystick balls_status %s ' % pyobject.balls_status)
+                    print('\n')
+                    print('Joystick id %s ' % pyobject.id)
+                    print('Joystick name %s ' % pyobject.name)
+                    print('Joystick axes %s ' % pyobject.axes)
+                    print('Joystick axes_status %s ' % pyobject.axes_status)
+                    print('Joystick button %s ' % pyobject.buttons)
+                    print('Joystick button_status %s ' % pyobject.button_status)
+                    print('Joystick hats %s ' % pyobject.hat)
+                    print('Joystick hats_status %s ' % pyobject.hats_status)
+                    print('Joystick balls %s ' % pyobject.balls)
+                    print('Joystick balls_status %s ' % pyobject.balls_status)
 
-                        self.gl.P2JNI = pyobject  # MirroredPlayer2Class Joystick network inputs
-                    
+                    self.gl.P2JNI = pyobject  # MirroredPlayer2Class Joystick network inputs
 
             """
             except Exception as error:
@@ -638,7 +637,7 @@ class JJoystick(JoystickAttributes):
             obj = JJoystick.OBJECT[joystick_id_]
 
             args = obj.get_id(), obj.get_name(), obj.get_numaxes(), \
-                   obj.get_numbuttons(), obj.get_numhats(), obj.get_numballs()
+                obj.get_numbuttons(), obj.get_numhats(), obj.get_numballs()
 
             # print('\n id %s, \n name %s, \n number of axes  %s, '
             #      '\n number of button %s, \n number of hats %s, \n number of balls %s' % (tuple(args)))
@@ -743,8 +742,8 @@ def send_sigterm(host_, port_):
 
 if __name__ == '__main__':
 
-    #host = '192.168.1.112'  # '127.0.0.1' # '192.168.1.106'
-    #port = 1026
+    # host = '192.168.1.112'  # '127.0.0.1' # '192.168.1.106'
+    # port = 1026
 
     joystick = 0
     # socket.setdefaulttimeout(60)

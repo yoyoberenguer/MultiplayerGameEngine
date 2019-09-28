@@ -35,8 +35,8 @@ def display_dust(gl_):
             sprite.rect.move_ip(sprite.speed * gl_.ACCELERATION + sprite.vector)
 
             if sprite.rect.top > gl_.SCREENRECT.h:
-
-                COSMIC_DUST_ARRAY.remove(sprite)
+                if sprite in COSMIC_DUST_ARRAY:
+                    COSMIC_DUST_ARRAY.remove(sprite)
 
                 if hasattr(sprite, 'kill'):
                     sprite.kill()

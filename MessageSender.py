@@ -84,7 +84,12 @@ class SpriteClient(threading.Thread):
 
                 buffer_ = self.gl.BUFFER
                 # todo check if data are different
+
+                # Sort the data before sending them, DeleteSpriteCommand at the end with
+                # Broadcast.live_object_inventory
+                Broadcast.sort_message_queue()
                 data = Broadcast.MessageQueue
+
                 try:
                     if data is not None and len(data) > 0:
                         pickle_data = cpickle.dumps(data)
